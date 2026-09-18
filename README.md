@@ -51,8 +51,7 @@ copying `site/` to any static host.
 ## Publishing it
 
 The site is static and every path in it is relative, so it works at a domain root or in
-a subdirectory (`user.github.io/repo/`) with no configuration. Both options below are
-already set up in this repo.
+a subdirectory (`user.github.io/repo/`) with no configuration.
 
 ### GitHub Pages
 
@@ -70,16 +69,6 @@ That is the whole setup. `.github/workflows/deploy-pages.yml` uploads `site/` on
 push to `main`, and the first run publishes to
 `https://<you>.github.io/<repo>/`. Watch it under the **Actions** tab; it takes about a
 minute. There is no build step — the workflow only copies `site/`.
-
-### Vercel
-
-1. Push to GitHub as above (Vercel deploys from a repository).
-2. At [vercel.com/new](https://vercel.com/new), import the repository.
-3. When asked for a framework, choose **Other**, and leave the build command empty.
-   `vercel.json` already sets the output directory to `site`.
-
-Vercel then gives you a `*.vercel.app` URL and redeploys on every push. To deploy from
-the terminal instead, `npm i -g vercel && vercel --prod` from the project root.
 
 ### After editing the course
 
