@@ -1,5 +1,7 @@
 # Regularized Regression — From Likelihood to Lasso
 
+**Live site: <https://pranavjanjani.github.io/regularized-regression/>**
+
 A complete graduate teaching package on MLE, MAP, Ridge, Lasso, Elastic Net and Bayesian
 linear regression, taught end to end through one case study: an additive surge-pricing
 engine for Mumbai.
@@ -55,20 +57,18 @@ a subdirectory (`user.github.io/repo/`) with no configuration.
 
 ### GitHub Pages
 
+Already set up. `.github/workflows/deploy-pages.yml` uploads `site/` on every push to
+`main`, and publishes to <https://pranavjanjani.github.io/regularized-regression/>. A
+deploy takes about a minute; watch it under the repository's **Actions** tab. There is no
+build step — the workflow only copies `site/`.
+
+To set this up again on a different repository:
+
 1. Create an empty repository on GitHub (no README, no .gitignore).
-2. Push this project to it:
+2. `git remote add origin https://github.com/<you>/<repo>.git && git push -u origin main`
+3. Open **Settings → Pages** and set **Source** to **GitHub Actions**.
 
-```bash
-git remote add origin https://github.com/<you>/<repo>.git
-git push -u origin main
-```
-
-3. In the repository, open **Settings → Pages** and set **Source** to **GitHub Actions**.
-
-That is the whole setup. `.github/workflows/deploy-pages.yml` uploads `site/` on every
-push to `main`, and the first run publishes to
-`https://<you>.github.io/<repo>/`. Watch it under the **Actions** tab; it takes about a
-minute. There is no build step — the workflow only copies `site/`.
+Pages needs a public repository unless the account has a paid plan.
 
 ### After editing the course
 
