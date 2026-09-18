@@ -149,6 +149,22 @@
         st.i = keepPos ? Math.min(was, st.steps.length - 1) : 0;
         render();
       },
+      /** Say so on the page instead of leaving stale numbers on screen. */
+      showError(err) {
+        stop();
+        root.querySelector('.math-pane').innerHTML =
+          '<div class="step-title">Not available for this pair</div>'
+          + '<p class="small">This estimator could not be built for the features and sample size '
+          + 'currently selected above. Pick a different pair, or raise the number of trips.</p>'
+          + '<p class="muted small" style="font-family:var(--mono);font-size:.78rem">'
+          + String(err && err.message || err) + '</p>';
+        root.querySelector('.viz-pane').innerHTML = '';
+        root.querySelector('.narration').innerHTML = '';
+        ['.slice-pane', '.obj-pane', '.soft-pane', '.cmp-pane', '.tau-pane'].forEach(sel => {
+          const el2 = root.querySelector(sel);
+          if (el2) el2.innerHTML = '';
+        });
+      },
       render, stop
     };
   }
@@ -209,7 +225,17 @@
       $('nObsV').textContent = S.n;
       rebuild();
       drawSetup();
-      ALL.forEach(p => p.rebuild(keep));
+      /* Rebuild every player independently. Without this, one throwing estimator
+         aborted the loop and left the remaining panels displaying numbers from the
+         previous feature pair — a silent wrong answer, worse than a visible error. */
+      ALL.forEach(p => {
+        try {
+          p.rebuild(keep);
+        } catch (err) {
+          console.error('walkthrough failed to rebuild', err);
+          p.showError(err);
+        }
+      });
     }
     S.refresh = refresh;
     ['fA', 'fB'].forEach(id => $(id).addEventListener('change', () => refresh(false)));
@@ -1036,7 +1062,8 @@
               ['penalty paid', F(fin.obj - loss(fin.w), 5)],
               ['‖ŵ‖₁', F(l1(fin.w), 4)],
               ['‖ŵ‖₂', F(Math.sqrt(l2sq(fin.w)), 4)],
-              ['distance from OLS', F(Math.hypot(fin.w[0] - S.wOls[0], fin.w[1] - S.wOls[1]), 4)]])}</div>`,
+              [S.wOls ? 'distance from OLS' : 'distance from min-norm fit',
+               (rf => F(Math.hypot(fin.w[0] - rf[0], fin.w[1] - rf[1]), 4))(S.wOls || S.wMin)]])}</div>`,
           narration: `<p>No coordinate moved by more than $10^{-6}$, so each is optimal given the
             others. For a convex objective that means the global minimum.</p>
             ${nz < 2
