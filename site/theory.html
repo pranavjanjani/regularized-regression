@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theory — Regularized Regression</title>
+<meta name="description" content="Derivations of OLS/MLE, MAP, Ridge, Lasso, Elastic Net and the full Bayesian posterior.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Lecture notes · Modules 1–7</div>
+    <h1>Every penalty is a prior</h1>
+    <p class="lede">The four estimators, derived in one continuous argument and checked against the
+    Mumbai surge data in the <a href="lab.html">lab</a>.</p>
+  </div>
+</section>
+
+<main class="wrap">
+<div class="split">
+<article>
+
+<!-- ================= 1. LINEAR MODEL ================= -->
+<h2 id="linear">1 · The linear model and least squares</h2>
+
+<p>We observe $n$ trips. Trip $i$ has features $x_i \in \mathbb{R}^p$ (peak-hour flag, rain flag,
+traffic speed, drivers available) and an outcome $y_i \in \mathbb{R}$, the surge charged in rupees.
+We posit</p>
+
+$$ y_i = x_i^\top w + \varepsilon_i, \qquad i = 1,\dots,n. $$
+
+<p>Stack the rows into the <strong>design matrix</strong> $X \in \mathbb{R}^{n \times p}$ and the
+outcomes into $y \in \mathbb{R}^n$, so that $y = Xw + \varepsilon$. Least squares chooses $w$ to
+minimise the residual sum of squares</p>
+
+$$ \mathrm{RSS}(w) = \lVert y - Xw \rVert_2^2 = \sum_{i=1}^n \left(y_i - x_i^\top w\right)^2 .$$
+
+<div class="derivation">
+  <div class="step">Expand: $\mathrm{RSS}(w) = y^\top y - 2w^\top X^\top y + w^\top X^\top X w$.</div>
+  <div class="step">Differentiate: $\nabla_w \mathrm{RSS} = -2X^\top y + 2X^\top X w$.</div>
+  <div class="step">Set to zero — the <strong>normal equations</strong>: $X^\top X\,w = X^\top y$.</div>
+  <div class="step">If $X^\top X$ is invertible, $\;\hat w_{\text{OLS}} = (X^\top X)^{-1} X^\top y$.</div>
+</div>
+
+<p>The Hessian $2X^\top X \succeq 0$, so this is a global minimum. Geometrically
+$X\hat w = X(X^\top X)^{-1}X^\top y$ is the orthogonal projection of $y$ onto the column space of
+$X$, and the residual is perpendicular to every column.</p>
+
+<h3 id="collinear">1.1 · Where it breaks: collinearity</h3>
+
+<p>Everything above hinges on inverting $X^\top X$. Write the singular value decomposition
+$X = U D V^\top$ with $D = \mathrm{diag}(d_1 \ge \dots \ge d_p)$. Then</p>
+
+$$ \hat w_{\text{OLS}} = V D^{-1} U^\top y, \qquad
+   \operatorname{Var}(\hat w_{\text{OLS}}) = \sigma^2 (X^\top X)^{-1} = \sigma^2 V D^{-2} V^\top .$$
+
+<p>A small singular value $d_j$ enters as $d_j^{-2}$. In the Mumbai data <code>is_peak</code>,
+<code>is_rain</code> and <code>traffic_speed</code> move together: rain is likelier in the evening
+peak, and both slow traffic. Their pairwise correlations run from $-0.75$ to $0.66$ (see the
+<a href="dataset.html#corr">correlation matrix</a>). $X^\top X$ is then nearly singular, and least
+squares can shift weight between the rain and peak coefficients with almost no change in fit.</p>
+
+<div class="callout warn">
+  <span class="ct">The failure you will reproduce in Task 1</span>
+  <p>Fit OLS on <code>is_rain</code> and <code>traffic_speed</code> using only the first six trips.
+  Those two columns are correlated at $-0.94$ there, and you get
+  $\hat w = (10.8,\, -34.2)$. Add <em>one</em> more trip and it becomes $(21.7,\, -23.8)$ — a swing of
+  ₹11 per standard deviation from a single observation. This is not a bug in your code; it is
+  $D^{-2}$ doing exactly what the algebra above says it will.</p>
+  <p>Worse is available. Take <code>is_rain</code> and <code>is_bad_weather</code> over the first ten
+  trips: in that stretch every rainy trip also had traffic below 25 km/h, so the two columns are
+  <em>identical</em>, $\det(X^\top X) = 0$, and the maximum likelihood estimate does not exist at
+  all. Not "is unstable" — does not exist. Ridge, as we are about to see, returns a perfectly
+  sensible answer on the same data.</p>
+</div>
+
+<figure>
+  <div class="chart-box"><div id="figCond"></div></div>
+  <figcaption><strong>Figure 1.</strong> Variance inflation as a function of the smallest singular
+  value. The vertical line marks where the Mumbai training matrix sits once
+  <code>is_bad_weather</code> is added to the eight base features.</figcaption>
+</figure>
+
+<!-- ================= 2. MLE ================= -->
+<h2 id="mle">2 · Maximum likelihood</h2>
+
+<p>So far least squares was an aesthetic choice. Make it a statistical one: assume the noise is
+independent Gaussian, $\varepsilon_i \sim \mathcal{N}(0, \sigma^2)$. Then</p>
+
+$$ p(y \mid X, w, \sigma^2) = \prod_{i=1}^{n}
+   \frac{1}{\sqrt{2\pi\sigma^2}} \exp\!\left(-\frac{(y_i - x_i^\top w)^2}{2\sigma^2}\right). $$
+
+<p>Take logs — the likelihood is a product, and products are miserable to differentiate:</p>
+
+$$ \ell(w,\sigma^2) = -\frac{n}{2}\log(2\pi\sigma^2)
+   \;-\; \frac{1}{2\sigma^2}\sum_{i=1}^n (y_i - x_i^\top w)^2 . $$
+
+<p>Only the last term involves $w$, and it is $-\mathrm{RSS}(w)/2\sigma^2$. Maximising over $w$ is
+therefore <em>identical</em> to minimising RSS:</p>
+
+$$ \hat w_{\text{MLE}} = \argmin_w \; \lVert y - Xw\rVert_2^2 = \hat w_{\text{OLS}}. $$
+
+<div class="callout note">
+  <span class="ct">The loss is a modelling assumption</span>
+  <p>Least squares is not an alternative to maximum likelihood; under Gaussian noise it
+  <em>is</em> maximum likelihood. Change the noise model and the loss changes with it. Laplace
+  noise gives least absolute deviations; Bernoulli outcomes give cross-entropy.</p>
+</div>
+
+<p>Differentiating $\ell$ with respect to $\sigma^2$ and setting to zero gives
+$\hat\sigma^2_{\text{MLE}} = \mathrm{RSS}(\hat w)/n$, which is biased downward; the unbiased
+estimator divides by $n - p$ instead. In the assignment we simply <em>fix</em> $\sigma = 10$ ₹,
+because the data generating process is known.</p>
+
+<p>MLE is consistent, asymptotically efficient and invariant to reparameterisation. Its weakness
+matters here: when $p$ approaches $n$, or columns are collinear, maximising fit to the data in hand
+is the wrong instruction.</p>
+
+<!-- ================= 3. MAP ================= -->
+<h2 id="map">3 · Bayes, and the MAP estimator</h2>
+
+<p>Treat $w$ as a random variable with a prior $p(w)$ encoding what you believed before seeing
+data. Bayes' theorem gives the posterior</p>
+
+$$ p(w \mid y, X) = \frac{p(y \mid X, w)\,p(w)}{p(y\mid X)} \;\propto\; p(y\mid X,w)\,p(w). $$
+
+<p>The <strong>maximum a posteriori</strong> estimate is the posterior mode. Taking logs turns the
+product into a sum, and the normalising constant drops out because it does not depend on $w$:</p>
+
+$$ \hat w_{\text{MAP}} = \argmax_w \Big[\log p(y\mid X,w) + \log p(w)\Big]
+ = \argmin_w \Big[\underbrace{\lVert y - Xw\rVert_2^2}_{\text{data fit}}
+   \;-\; \underbrace{2\sigma^2 \log p(w)}_{\text{penalty}}\Big]. $$
+
+<div class="callout">
+  <span class="ct">The key identity</span>
+  <p>$-\log(\text{prior})$ <em>is</em> the penalty. Choose a prior, take its negative log, and you
+  have a regularizer. Every method below follows from this equation; only the density on $w$
+  changes.</p>
+</div>
+
+<figure>
+  <div class="chart-box">
+    <div id="figPriors"></div>
+    <div class="legend" id="figPriorsLeg"></div>
+  </div>
+  <figcaption><strong>Figure 2.</strong> The two priors. The Laplace density has a sharp peak at
+  zero and heavier tails: most coefficients are zero, but survivors may be large. The Gaussian says
+  all coefficients are smallish and none exactly zero. That difference is what separates Lasso from
+  Ridge.</figcaption>
+</figure>
+
+<!-- ================= 4. RIDGE ================= -->
+<h2 id="ridge">4 · Ridge regression — the Gaussian prior</h2>
+
+<p>Put an isotropic Gaussian prior on the coefficients, $w_j \sim \mathcal{N}(0,\tau^2)$
+independently. Then</p>
+
+$$ \log p(w) = -\frac{1}{2\tau^2}\sum_{j=1}^p w_j^2 + \text{const}, $$
+
+<p>and substituting into the MAP objective:</p>
+
+$$ \hat w_{\text{ridge}} = \argmin_w \; \lVert y - Xw\rVert_2^2 + \lambda \lVert w \rVert_2^2 ,
+   \qquad \boxed{\lambda = \frac{\sigma^2}{\tau^2}} $$
+
+<p>The penalty weight is the ratio of noise variance to prior variance, not a free parameter. A
+confident prior (small $\tau^2$) or noisy data (large $\sigma^2$) both increase shrinkage. In the
+assignment $\sigma = 10$ and $\tau = 1$, so $\lambda = 100$.</p>
+
+<div class="derivation">
+  <div class="step">Objective: $J(w) = (y-Xw)^\top(y-Xw) + \lambda w^\top w$.</div>
+  <div class="step">Gradient: $\nabla J = -2X^\top y + 2X^\top X w + 2\lambda w$.</div>
+  <div class="step">Set to zero: $(X^\top X + \lambda I)\,w = X^\top y$.</div>
+  <div class="step">$\;\hat w_{\text{ridge}} = (X^\top X + \lambda I)^{-1} X^\top y$.</div>
+</div>
+
+<p>Since $X^\top X \succeq 0$, adding $\lambda I$ with $\lambda > 0$ raises every eigenvalue to at
+least $\lambda$, so the inverse always exists, even when $p > n$ and OLS is undefined.</p>
+
+<h3 id="shrink">4.1 · What shrinkage does, in the SVD basis</h3>
+
+<p>Using $X = UDV^\top$, the fitted values become</p>
+
+$$ X\hat w_{\text{ridge}} = \sum_{j=1}^{p} u_j \,\frac{d_j^2}{d_j^2 + \lambda}\, u_j^\top y .$$
+
+<p>Each principal direction is multiplied by $d_j^2/(d_j^2+\lambda) \in (0,1)$. Directions with
+large $d_j$, where the data genuinely varies, are barely touched; directions with tiny $d_j$, the
+ill-conditioned combinations, are crushed. Ridge shrinks the unreliable directions hardest.</p>
+
+<figure>
+  <div class="chart-box"><div id="figShrink"></div><div class="legend" id="figShrinkLeg"></div></div>
+  <figcaption><strong>Figure 3.</strong> The shrinkage factor $d^2/(d^2+\lambda)$. The effective
+  degrees of freedom $\mathrm{df}(\lambda) = \sum_j d_j^2/(d_j^2+\lambda)$ is the sum of these
+  factors — a continuous model-complexity count that falls from $p$ to $0$ as $\lambda$ grows.</figcaption>
+</figure>
+
+<h3 id="ridge-group">4.2 · Why correlated features share weight</h3>
+
+<p>Suppose two columns are identical, $x_1 = x_2$, and the best total effect is $c$. Any split
+$(a, c-a)$ fits equally well, so OLS is indifferent — the solution is not unique. Ridge breaks the
+tie by minimising $a^2 + (c-a)^2$, which is smallest at $a = c/2$. <strong>Equal split.</strong></p>
+
+<p>This is what Task 2 shows: at $\lambda = 0$ the peak and rain coefficients differ sharply, and
+as $\lambda$ grows they converge. Ridge attributes a little to each rather than a lot to one.</p>
+
+<div class="callout tip">
+  <span class="ct">Why this matters in production</span>
+  <p>Two adjacent road segments in a travel-time model are nearly the same feature. Attributing all
+  the delay to one produces misleading segment-level diagnostics and a different answer after the
+  next retrain. Splitting it is more stable.</p>
+</div>
+
+<!-- ================= 5. LASSO ================= -->
+<h2 id="lasso">5 · Lasso — the Laplace prior</h2>
+
+<p>Now use a Laplace (double-exponential) prior, $p(w_j) = \frac{1}{2b}\exp(-|w_j|/b)$:</p>
+
+$$ \log p(w) = -\frac{1}{b}\sum_{j=1}^p |w_j| + \text{const}
+   \quad\Longrightarrow\quad
+   \hat w_{\text{lasso}} = \argmin_w \lVert y-Xw\rVert_2^2 + \lambda\lVert w\rVert_1,
+   \quad \lambda = \frac{2\sigma^2}{b}. $$
+
+<p>The objective is convex but not differentiable at $w_j = 0$, so there is no closed form. That
+non-differentiability is the mechanism that produces exact zeros.</p>
+
+<h3 id="soft">5.1 · Deriving the soft-threshold by hand</h3>
+
+<p>Take one coordinate at a time. Hold $w_k$ fixed for $k \neq j$ and define the
+<em>partial residual</em> $r^{(j)} = y - \sum_{k\neq j} x_k w_k$ and
+$\rho_j = x_j^\top r^{(j)}$. The objective in $w_j$ alone is</p>
+
+$$ f(w_j) = \lVert r^{(j)} - x_j w_j\rVert_2^2 + \lambda|w_j|
+ = \text{const} - 2\rho_j w_j + \lVert x_j\rVert^2 w_j^2 + \lambda|w_j|. $$
+
+<div class="derivation">
+  <div class="step">For $w_j > 0$: $f'= -2\rho_j + 2\lVert x_j\rVert^2 w_j + \lambda = 0
+      \Rightarrow w_j = (\rho_j - \lambda/2)/\lVert x_j\rVert^2$, valid only if $\rho_j > \lambda/2$.</div>
+  <div class="step">For $w_j < 0$: symmetrically $w_j = (\rho_j + \lambda/2)/\lVert x_j\rVert^2$,
+      valid only if $\rho_j < -\lambda/2$.</div>
+  <div class="step">For $|\rho_j| \le \lambda/2$ neither branch is feasible, and $0$ belongs to the
+      subdifferential. The minimiser is exactly $w_j = 0$.</div>
+  <div class="step">Together: $\;\hat w_j = \dfrac{S(\rho_j,\;\lambda/2)}{\lVert x_j\rVert^2}$, where
+      $S(\rho,\gamma) = \operatorname{sign}(\rho)\max(|\rho| - \gamma, 0)$.</div>
+</div>
+
+<p>Cycling this update over $j = 1,\dots,p$ until convergence is <strong>coordinate descent</strong>:
+about a dozen lines of code, and what <code>scikit-learn</code> runs.</p>
+
+<figure>
+  <div class="chart-box">
+    <div class="controls" style="margin-bottom:10px">
+      <div class="ctl" style="max-width:320px">
+        <label for="softLam">Threshold γ <span class="val" id="softLamV">1.00</span></label>
+        <input type="range" id="softLam" min="0" max="3" step="0.05" value="1">
+      </div>
+    </div>
+    <div id="figSoft"></div><div class="legend" id="figSoftLeg"></div>
+  </div>
+  <figcaption><strong>Figure 4.</strong> Soft-thresholding against the identity (OLS) and hard
+  thresholding. The flat region is the dead zone: any feature whose correlation with the residual is
+  below γ is set to exactly zero. Ridge instead multiplies the line by a constant slope, tilting it
+  without ever flattening it.</figcaption>
+</figure>
+
+<h3 id="geometry">5.2 · The geometry: why a diamond has corners</h3>
+
+<p>In constrained form, Lasso solves $\min \lVert y - Xw\rVert^2$ subject to $\lVert w\rVert_1 \le t$,
+and Ridge subject to $\lVert w\rVert_2^2 \le t$. The RSS contours are ellipses centred on
+$\hat w_{\text{OLS}}$. The solution is where the growing ellipse first touches the constraint set.</p>
+
+<p>The $\ell_2$ ball is smooth, so first contact almost surely happens where all coordinates are
+non-zero. The $\ell_1$ ball is a diamond with vertices on the axes, and an expanding ellipse is far
+more likely to meet a corner than an edge. A corner means a coordinate is exactly zero: sparsity
+follows from the geometry.</p>
+
+<figure>
+  <div class="chart-box">
+    <div class="controls" style="margin-bottom:8px">
+      <div class="seg" id="geoMode">
+        <button data-m="l1" class="on">ℓ₁ (Lasso)</button>
+        <button data-m="l2">ℓ₂ (Ridge)</button>
+        <button data-m="en">Elastic Net</button>
+      </div>
+      <div class="ctl" style="max-width:260px">
+        <label for="geoT">Budget t <span class="val" id="geoTV">1.00</span></label>
+        <input type="range" id="geoT" min="0.15" max="2.6" step="0.05" value="1">
+      </div>
+    </div>
+    <div id="figGeo"></div>
+    <p class="muted small" id="geoNote" style="margin:8px 0 0"></p>
+  </div>
+  <figcaption><strong>Figure 5.</strong> Constraint region (shaded) against the RSS contours
+  (ellipses) for two correlated features. Drag the budget and watch where the solution point
+  lands. On the ℓ₁ setting, note how often it sits exactly on an axis.</figcaption>
+</figure>
+
+<h3 id="lasso-caveats">5.3 · Three caveats worth stating out loud</h3>
+<ul>
+  <li><strong>Among correlated features the choice is arbitrary.</strong> If <code>is_rain</code>
+  and <code>traffic_speed</code> carry the same information, Lasso keeps roughly one, and which one
+  can change under resampling. The survivor is not evidence of a cause.</li>
+  <li><strong>It saturates when $p > n$.</strong> Lasso selects at most $n$ variables, an awkward
+  ceiling in genomics where $p$ is 20,000 and $n$ is 200.</li>
+  <li><strong>The estimates are biased.</strong> Soft-thresholding shrinks the survivors too.
+  If you need honest effect sizes, refit OLS on the selected set (the "relaxed" or
+  debiased Lasso).</li>
+</ul>
+
+<!-- ================= 6. ELASTIC NET ================= -->
+<h2 id="enet">6 · Elastic Net — both priors at once</h2>
+
+<p>Multiply the two priors together — Gaussian times Laplace — and the log turns the product into
+a sum of penalties:</p>
+
+$$ \hat w_{\text{EN}} = \argmin_w \;\lVert y - Xw\rVert_2^2
+   \;+\; \lambda_1\lVert w\rVert_1 \;+\; \lambda_2\lVert w\rVert_2^2 . $$
+
+<p>The usual parameterisation writes $\lambda_1 = \alpha\rho$ and $\lambda_2 = \alpha(1-\rho)/2$:
+$\alpha$ sets the strength, and the mixing ratio $\rho \in [0,1]$ sets the character, with
+$\rho = 1$ pure Lasso and $\rho = 0$ pure Ridge.</p>
+
+<p>The coordinate update inherits the soft-threshold, with the ridge term appearing in the
+denominator — one extra symbol relative to Lasso:</p>
+
+$$ \hat w_j \;\leftarrow\; \frac{S\!\left(\rho_j,\;\lambda_1\right)}{\lVert x_j\rVert^2 + \lambda_2}. $$
+
+<h3 id="grouping">6.1 · The grouping effect</h3>
+
+<p>Zou &amp; Hastie proved a bound worth carrying around. For standardized inputs and two features
+with sample correlation $r$, the Elastic Net solution satisfies</p>
+
+$$ \frac{|\hat w_i - \hat w_j|}{\lVert y\rVert_1} \;\le\; \frac{\sqrt{2(1-r)}}{\lambda_2}. $$
+
+<p>As $r \to 1$ the bound goes to zero, so perfectly correlated features receive identical
+coefficients. Lasso has no such guarantee. This is the formal version of "Lasso picks one, Elastic
+Net keeps the group".</p>
+
+<div class="callout">
+  <span class="ct">Task 4 in one sentence</span>
+  <p>You will build <code>is_bad_weather = is_rain AND traffic_speed &lt; 25</code>, which is
+  correlated with both of its parents, then show that Lasso keeps roughly one of the three,
+  Ridge keeps all three with similar weight, and Elastic Net keeps the group while still zeroing
+  <code>is_weekend</code>. That last clause is the part Ridge cannot do.</p>
+</div>
+
+<h3 id="naive">6.2 · The double-shrinkage correction</h3>
+
+<p>Applying both penalties shrinks twice, once by $\ell_1$ and again by $\ell_2$, biasing the
+naïve solution toward zero. Zou &amp; Hastie rescale by $(1+\lambda_2)$ to undo the second
+shrinkage; <code>scikit-learn</code> absorbs this into its parameterisation. If your coordinate
+descent disagrees with <code>ElasticNet</code> in the third decimal, the objective is the usual
+culprit.</p>
+
+<!-- ================= 7. FULL BAYES ================= -->
+<h2 id="bayes">7 · Past the point estimate</h2>
+
+<p>MAP returns the posterior <em>mode</em> and throws away the rest of the distribution. With a
+Gaussian prior and Gaussian likelihood the entire posterior is available in closed form:</p>
+
+$$ p(w \mid y, X) = \mathcal{N}(\mu, \Sigma), \qquad
+   \Sigma = \left(\frac{X^\top X}{\sigma^2} + \frac{I}{\tau^2}\right)^{-1}, \qquad
+   \mu = \frac{1}{\sigma^2}\,\Sigma\, X^\top y . $$
+
+<p>The mean $\mu$ equals the Ridge solution at $\lambda = \sigma^2/\tau^2$, because a Gaussian's
+mode is its mean. Ridge is the posterior with the error bars discarded; the diagonal of $\Sigma$
+returns them as $\hat w_j \pm 1.96\sqrt{\Sigma_{jj}}$.</p>
+
+<p>For a new trip $x_\star$ the <strong>posterior predictive</strong> adds observation noise back:</p>
+
+$$ p(y_\star \mid x_\star, y) = \mathcal{N}\!\left(x_\star^\top \mu,\;
+   \underbrace{x_\star^\top \Sigma x_\star}_{\text{uncertainty in } w}
+   + \underbrace{\sigma^2}_{\text{irreducible}}\right). $$
+
+<p>The first term shrinks as you collect data; the second does not. That is the difference between
+uncertainty about the rain coefficient and the inherent noise in surges, and the reason a quote of
+₹50 ± ₹10 is more honest than ₹50.</p>
+
+<figure>
+  <div class="chart-box">
+    <div class="controls" style="margin-bottom:10px">
+      <div class="ctl" style="max-width:300px">
+        <label for="bayesN">Training trips used <span class="val" id="bayesNV">150</span></label>
+        <input type="range" id="bayesN" min="8" max="150" step="1" value="150">
+      </div>
+    </div>
+    <div id="figBayes"></div>
+  </div>
+  <figcaption><strong>Figure 6.</strong> Posterior mean ± 1.96 σ per coefficient, against the
+  amount of data seen. With eight trips the intervals are wide and cross zero; by 150 they have
+  tightened. Lasso makes a hard yes/no decision; these intervals are the graded version.</figcaption>
+</figure>
+
+<!-- ================= 8. SUMMARY ================= -->
+<h2 id="cheat">8 · One page to revise from</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Estimator</th><th>Prior</th><th>Objective</th><th>Solution</th><th>Zeros?</th></tr></thead>
+  <tbody>
+    <tr><td>OLS / MLE</td><td>flat</td><td>$\lVert y-Xw\rVert^2$</td>
+        <td>$(X^\top X)^{-1}X^\top y$</td><td>no</td></tr>
+    <tr><td>Ridge</td><td>$\mathcal{N}(0,\tau^2)$</td>
+        <td>$\lVert y-Xw\rVert^2+\lambda\lVert w\rVert_2^2$</td>
+        <td>$(X^\top X+\lambda I)^{-1}X^\top y$</td><td>no</td></tr>
+    <tr><td>Lasso</td><td>$\mathrm{Laplace}(0,b)$</td>
+        <td>$\lVert y-Xw\rVert^2+\lambda\lVert w\rVert_1$</td>
+        <td>coordinate descent, $S(\rho,\lambda/2)/\lVert x_j\rVert^2$</td><td><strong>yes</strong></td></tr>
+    <tr><td>Elastic Net</td><td>Gaussian × Laplace</td>
+        <td>$\lVert y-Xw\rVert^2+\lambda_1\lVert w\rVert_1+\lambda_2\lVert w\rVert_2^2$</td>
+        <td>$S(\rho_j,\lambda_1)/(\lVert x_j\rVert^2+\lambda_2)$</td><td><strong>yes</strong></td></tr>
+    <tr><td>Bayesian</td><td>$\mathcal{N}(0,\tau^2)$</td><td>— (full posterior)</td>
+        <td>$\mathcal{N}(\mu,\Sigma)$, $\mu = \hat w_{\text{ridge}}$</td><td>no, but intervals</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout tip">
+  <span class="ct">Three things to remember</span>
+  <p>Ridge shrinks, Lasso selects, Elastic Net does both. The penalty weight is a noise-to-prior
+  variance ratio. And a coefficient whose credible interval covers zero is not a finding.</p>
+</div>
+
+<p style="margin-top:2.4em">Next: see all of this on the real data in the
+<a href="lab.html">interactive lab</a>, or read how it is deployed in the
+<a href="uber.html">Uber surge case study</a>.</p>
+
+</article>
+<aside class="toc" data-toc></aside>
+</div>
+</main>
+
+<script defer src="assets/js/data.js"></script>
+<script defer src="assets/js/mlcore.js"></script>
+<script defer src="assets/js/plot.js"></script>
+<script defer src="assets/js/prep.js"></script>
+<script defer src="assets/js/theory.js"></script>
+</body>
+</html>

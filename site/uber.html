@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case Study: Surge Pricing — Regularized Regression</title>
+<meta name="description" content="A teaching reconstruction of a ride-hailing surge pricing engine, built with MLE, Ridge, Lasso and Elastic Net.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Module 8 · Case study</div>
+    <h1>Pricing a rainy Tuesday in&nbsp;BKC</h1>
+    <p class="lede">Surge pricing makes a good teaching system: the features are intuitive and
+    heavily correlated, the target is capped, the decision is public, and each of the four
+    estimators has a job in it.</p>
+  </div>
+</section>
+
+<main class="wrap">
+<div class="split">
+<article>
+
+<div class="callout note">
+  <span class="ct">What this is, and what it is not</span>
+  <p>This is a <strong>teaching reconstruction</strong>. Ride-hailing companies publish the broad
+  shape of their marketplace systems (spatial grids, short-horizon demand and supply forecasts, a
+  matching and pricing layer, and the move from multiplier-based to itemised pricing) but not their
+  live models, features or coefficients. What follows has the right shape and mathematics for the
+  problem, on synthetic Mumbai data. Treat it as a well-posed engineering problem, not a
+  description of any company's code.</p>
+</div>
+
+<h2 id="problem">1 · The problem, stated properly</h2>
+
+<p>Split the city into 500 m grid cells and time into 5-minute buckets. Within a cell-bucket you
+observe open requests $R$ and available drivers $S$. As $R/S$ climbs, waiting times rise, riders
+abandon, and drivers are in the wrong place. Price is the fastest lever: raise the fare and some
+riders defer while nearby drivers are pulled in.</p>
+
+<p>The objective is not "maximise revenue". It is closer to:</p>
+
+$$ \min_{\text{price}} \;\; \Big| \frac{\hat R(\text{price})}{\hat S(\text{price})} - 1 \Big|
+  \quad\text{subject to}\quad \widehat{\text{wait}} < 5\ \text{min}, \;\;
+  \text{surge} \le \text{cap}. $$
+
+<p>Both $\hat R$ and $\hat S$ are forecasts, and forecasts are regressions.</p>
+
+<h2 id="arch">2 · The architecture</h2>
+
+<p>Three models set the price, in series. The third takes the first two's output as input, which
+matters when reasoning about error propagation.</p>
+
+<figure>
+  <div class="chart-box" style="padding:20px">
+    <svg viewBox="0 0 760 300" width="100%" style="display:block" role="img"
+         aria-label="Three-stage surge pricing architecture">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+                orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--fg-3)"/>
+        </marker>
+      </defs>
+      <!-- inputs -->
+      <rect x="8" y="20" width="150" height="86" rx="10" fill="var(--bg-3)" stroke="var(--line-2)"/>
+      <text x="83" y="44" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--fg)">Telemetry</text>
+      <text x="83" y="64" text-anchor="middle" font-size="10.5" fill="var(--fg-2)" font-family="var(--mono)">open requests</text>
+      <text x="83" y="79" text-anchor="middle" font-size="10.5" fill="var(--fg-2)" font-family="var(--mono)">drivers online</text>
+      <text x="83" y="94" text-anchor="middle" font-size="10.5" fill="var(--fg-2)" font-family="var(--mono)">traffic, weather</text>
+
+      <rect x="8" y="128" width="150" height="72" rx="10" fill="var(--bg-3)" stroke="var(--line-2)"/>
+      <text x="83" y="152" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--fg)">Context</text>
+      <text x="83" y="172" text-anchor="middle" font-size="10.5" fill="var(--fg-2)" font-family="var(--mono)">hour, weekday</text>
+      <text x="83" y="187" text-anchor="middle" font-size="10.5" fill="var(--fg-2)" font-family="var(--mono)">events, airport</text>
+
+      <!-- stage 1 -->
+      <rect x="215" y="16" width="175" height="92" rx="10" fill="var(--blue-soft)" stroke="var(--c-ridge)" stroke-width="1.6"/>
+      <text x="302" y="40" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--fg)">Demand forecast</text>
+      <text x="302" y="59" text-anchor="middle" font-size="10.5" fill="var(--fg-2)">R̂ for t + 5 min</text>
+      <text x="302" y="80" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--c-ridge)">Ridge — correlated</text>
+      <text x="302" y="94" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--c-ridge)">inputs, all matter</text>
+
+      <rect x="215" y="126" width="175" height="92" rx="10" fill="var(--blue-soft)" stroke="var(--c-ridge)" stroke-width="1.6"/>
+      <text x="302" y="150" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--fg)">Supply forecast</text>
+      <text x="302" y="169" text-anchor="middle" font-size="10.5" fill="var(--fg-2)">Ŝ for t + 5 min</text>
+      <text x="302" y="190" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--c-ridge)">Ridge — driver</text>
+      <text x="302" y="204" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--c-ridge)">repositioning is smooth</text>
+
+      <!-- stage 2 -->
+      <rect x="447" y="70" width="175" height="96" rx="10" fill="var(--violet-soft)" stroke="var(--c-enet)" stroke-width="1.6"/>
+      <text x="534" y="95" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--fg)">Surge model</text>
+      <text x="534" y="114" text-anchor="middle" font-size="10.5" fill="var(--fg-2)">₹ additive surge</text>
+      <text x="534" y="135" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--c-enet)">Elastic Net — sparse</text>
+      <text x="534" y="149" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--c-enet)">but keeps groups</text>
+
+      <!-- stage 3 -->
+      <rect x="652" y="86" width="100" height="64" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6"/>
+      <text x="702" y="110" text-anchor="middle" font-size="12" font-weight="650" fill="var(--fg)">Policy</text>
+      <text x="702" y="128" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent)">cap · threshold</text>
+      <text x="702" y="141" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--accent)">rounding</text>
+
+      <!-- arrows -->
+      <path d="M160 62 L210 62" stroke="var(--fg-3)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <path d="M160 164 L210 172" stroke="var(--fg-3)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <path d="M160 96 L210 150" stroke="var(--fg-3)" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+      <path d="M392 78 L442 104" stroke="var(--fg-3)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <path d="M392 165 L442 138" stroke="var(--fg-3)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <path d="M624 118 L648 118" stroke="var(--fg-3)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="417" y="105" text-anchor="middle" font-size="10" font-family="var(--mono)" fill="var(--fg-3)">R̂/Ŝ</text>
+
+      <!-- feedback -->
+      <path d="M702 154 L702 250 L302 250 L302 224" stroke="var(--rose)" stroke-width="1.4"
+            fill="none" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+      <text x="500" y="268" text-anchor="middle" font-size="10.5" fill="var(--rose)"
+            font-family="var(--mono)">price feeds back into next demand — the loop that makes this hard</text>
+    </svg>
+  </div>
+  <figcaption><strong>Figure 1.</strong> Three regressions and a policy layer. The dashed red path
+  is why offline evaluation misleads: today's prices shaped today's demand, so the training data is
+  not a clean sample of how riders respond to price.</figcaption>
+</figure>
+
+<h2 id="features">3 · The features, and their inconvenient correlations</h2>
+
+<p>For each cell-bucket we collect:</p>
+
+<pre><code>x = [ hour, is_peak, is_weekend, is_rain, is_event_nearby, is_airport_pickup,
+      traffic_speed_kmph, drivers_available_500m, open_requests_500m,
+      historical_demand_same_hour_last_week ]</code></pre>
+
+<p>These are not independent, and not remotely close to it. In our Mumbai data:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Pair</th><th class="num">r</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><code>is_peak</code> × <code>traffic_speed</code></td><td class="num">−0.75</td>
+        <td>Evening peak is exactly when the roads seize up.</td></tr>
+    <tr><td><code>is_rain</code> × <code>traffic_speed</code></td><td class="num">−0.66</td>
+        <td>Rain slows everything, and Mumbai rain slows everything a lot.</td></tr>
+    <tr><td><code>is_peak</code> × <code>drivers_available</code></td><td class="num">−0.60</td>
+        <td>Drivers are already occupied when demand peaks.</td></tr>
+    <tr><td><code>is_peak</code> × <code>is_rain</code></td><td class="num">+0.25</td>
+        <td>Monsoon downpours cluster in the late afternoon and evening.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>So when the fare rises on a rainy Tuesday at 7 pm, which variable caused it? Statistically the
+question is close to unanswerable, which is the point of
+<a href="theory.html#collinear">Theory §1.1</a>. OLS answers anyway, confidently, and differently
+each week.</p>
+
+<h2 id="fits">4 · Which estimator does which job</h2>
+
+<details class="acc" open>
+  <summary><span class="badge mle">MLE / OLS</span> &nbsp;The version that fails first</summary>
+  <div class="acc-body">
+    <p class="small">Regressing surge on <code>is_rain</code> and <code>traffic_speed</code> works
+    until the two move together, which in Mumbai is most of the monsoon. On six training rows their
+    correlation is $-0.94$, and a single extra trip shifts a coefficient by ₹11 per standard
+    deviation. <a href="assignments.html#t1">Task 1</a> asks you to reproduce this, and then a pair
+    where $X^\top X$ is exactly singular.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary><span class="badge ridge">Ridge</span> &nbsp;Demand and supply forecasting</summary>
+  <div class="acc-body">
+    <p class="small">For $\hat R$ and $\hat S$ every feature carries some signal: rain matters
+    off-peak, an event matters in light traffic. Nothing should be deleted, and the forecast must not
+    lurch between five-minute refits, since the rider's price derives from it. That is the Ridge
+    brief. With $\sigma = 10$ and $\tau = 1$ the assignment's prior gives $\lambda = 100$, checked
+    against cross-validation in <a href="assignments.html#t2">Task 2</a>.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary><span class="badge lasso">Lasso</span> &nbsp;Launching in a new city</summary>
+  <div class="acc-body">
+    <p class="small">A new market has hundreds of candidate features and a few weeks of trips:
+    $p \gg n$. OLS is undefined, and Ridge returns hundreds of small non-zero weights nobody can act
+    on. The operations team needs a list of which signals move price. That is selection, which is
+    what the $\ell_1$ penalty does. <a href="assignments.html#t3">Task 3</a> runs this on 120
+    features and 60 trips, and asks which real drivers Lasso misses and which decoys it keeps.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary><span class="badge enet">Elastic Net</span> &nbsp;The production surge model</summary>
+  <div class="acc-body">
+    <p class="small">The live model needs both properties. It must drop dead features, since a
+    weekend flag with no signal should not appear in a fare breakdown. And it must keep correlated
+    groups together: <code>is_rain</code>, <code>traffic_speed</code> and <code>is_bad_weather</code>
+    describe one situation, and a model that keeps a random one will explain the same fare
+    differently each week. <a href="assignments.html#t4">Task 4</a> compares all three.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary><span class="badge ok">Full posterior</span> &nbsp;What the rider is shown</summary>
+  <div class="acc-body">
+    <p class="small">₹50 and ₹50 ± ₹30 are different products. The second justifies showing a fare
+    range, and justifies suppressing surge when the interval is too wide to defend. The bonus task
+    computes these from the closed-form posterior in <a href="theory.html#bayes">Theory §7</a>.</p>
+  </div>
+</details>
+
+<h2 id="additive">5 · Multiplier or line item?</h2>
+
+<p>The older design multiplies: $\text{fare} = \text{base} \times m$, with $m = 1.8\times$ shown to
+the rider. The newer industry-wide pattern is additive and itemised:</p>
+
+$$ \text{fare} = \underbrace{\text{base} + c_d\,\text{distance} + c_t\,\text{time}}_{\text{deterministic}}
+   \;+\; \underbrace{\text{surge}(x)}_{\text{your regression}} .$$
+
+<p>Three consequences, all of them modelling consequences rather than marketing ones:</p>
+
+<ul>
+  <li><strong>The multiplier penalises long trips disproportionately.</strong> A $1.8\times$ on a
+  ₹600 airport run adds ₹480; on a ₹120 hop it adds ₹96. Surge prices driver scarcity at that
+  moment, which has little to do with trip length. An additive term prices it once.</li>
+  <li><strong>Additive means linear means interpretable.</strong> "₹60 for high demand" is one
+  coefficient times one feature, and fits on a receipt. A multiplier's attribution does not.</li>
+  <li><strong>It changes the regression target.</strong> Under a multiplier you would model
+  $\log(\text{fare})$; additive surge is modelled directly in rupees. Our dataset's target
+  <code>surge_additive_inr</code> reflects the newer design.</li>
+</ul>
+
+<h2 id="ethics">6 · The cap, and what it does to your data</h2>
+
+<p>The assignment imposes two policy rules:</p>
+
+<pre><code>if demand_supply_ratio &lt; 0.8:   surge = 0          # never surge into a soft market
+surge = min(surge, 150)                            # hard cap, ₹150</code></pre>
+
+<p>The first is uncontroversial. The second has a statistical consequence that is easy to miss:
+<strong>21 of the 200 trips sit exactly at ₹150</strong>. Those rows are censored, since the true
+willingness-to-price was higher and never observed. Fit an ordinary linear model to censored data
+and you underestimate the coefficients on whatever drives extreme surge.</p>
+
+<div class="callout warn">
+  <span class="ct">Worth an extra paragraph in your write-up</span>
+  <p>Notice the censoring; you are not asked to fix it, as a Tobit model is out of scope. A
+  submission that says "21 observations are at the cap, so my <code>is_airport</code> and
+  <code>is_rain</code> coefficients are biased toward zero, in this direction" is doing applied
+  statistics. One that reports RMSE and stops is not.</p>
+</div>
+
+<p>The cap is also an ethical instrument. Uncapped scarcity pricing during a flood or an
+evacuation turns a crisis into a willingness-to-pay auction. Caps, and the regulatory disabling of
+surge during declared emergencies, exist because the profit-maximising price and the defensible
+price differ. The model computes the first; policy decides the second. Keeping the two layers
+separate in code is not just tidiness.</p>
+
+<h2 id="worked">7 · Worked example: BKC, 7 pm, raining</h2>
+
+<p>The scenario from <a href="assignments.html#t5">Task 5</a>. Change the inputs and the model —
+fitted live in your browser on the training split — re-prices the trip.</p>
+
+<div class="card" id="surgeCard">
+  <div class="controls">
+    <div class="ctl"><label for="uHour"><span>Hour</span><span class="val" id="uHourV">19:00</span></label>
+      <input type="range" id="uHour" min="0" max="23" step="1" value="19"></div>
+    <div class="ctl"><label for="uDrivers"><span>Drivers within 500 m</span><span class="val" id="uDriversV">5</span></label>
+      <input type="range" id="uDrivers" min="1" max="40" step="1" value="5"></div>
+    <div class="ctl"><label for="uReq"><span>Open requests</span><span class="val" id="uReqV">25</span></label>
+      <input type="range" id="uReq" min="1" max="70" step="1" value="25"></div>
+    <div class="ctl"><label for="uTraffic"><span>Traffic speed (km/h)</span><span class="val" id="uTrafficV">16</span></label>
+      <input type="range" id="uTraffic" min="5" max="60" step="1" value="16"></div>
+    <div class="ctl"><label for="uDist"><span>Trip distance (km)</span><span class="val" id="uDistV">8.0</span></label>
+      <input type="range" id="uDist" min="1" max="25" step="0.5" value="8"></div>
+  </div>
+  <div class="chips" style="margin:16px 0 4px">
+    <span class="chip on" data-f="is_rain">rain</span>
+    <span class="chip" data-f="is_event_nearby">event nearby</span>
+    <span class="chip" data-f="is_airport_pickup">airport pickup</span>
+    <span class="chip" data-f="is_weekend">weekend</span>
+  </div>
+  <div class="grid g4" style="margin-top:18px">
+    <div class="stat"><div class="k">Demand / supply</div><div class="v" id="uRatio">—</div>
+      <div class="sub" id="uRatioNote">—</div></div>
+    <div class="stat"><div class="k">Raw model output</div><div class="v" id="uRaw">—</div>
+      <div class="sub">before policy</div></div>
+    <div class="stat"><div class="k">Surge charged</div><div class="v" id="uSurge">—</div>
+      <div class="sub" id="uSurgeNote">after cap &amp; threshold</div></div>
+    <div class="stat"><div class="k">Total fare</div><div class="v" id="uFare">—</div>
+      <div class="sub">base + surge</div></div>
+  </div>
+  <div style="margin-top:18px">
+    <h4 style="margin:0 0 4px">Where the surge comes from</h4>
+    <p class="muted small" style="margin:0 0 8px">Per-feature contribution
+      $w_j (x_j - \bar x_j)/s_j$: the receipt breakdown the additive design makes possible.</p>
+    <div id="uContrib"></div>
+  </div>
+  <p class="small" id="uVerdict" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<h2 id="deploy">8 · So what would you actually deploy?</h2>
+
+<p>This is <a href="assignments.html#deliverables">Deliverable 3</a>. There is no single right
+answer, but there are wrong ones. A defensible argument names the constraint first and the
+estimator second.</p>
+
+<div class="grid g2">
+  <div class="card">
+    <h4 style="margin-top:0">The case for Elastic Net</h4>
+    <p class="small">Drops dead features so the fare breakdown stays short, and keeps the weather
+    group together so the explanation is stable across refits. Costs one extra hyperparameter.</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">The case for plain Ridge</h4>
+    <p class="small">One hyperparameter, a closed form, no convergence to monitor, and no feature
+    silently vanishing after an overnight retrain. If the requirement is predictability, the
+    accuracy difference here is within noise anyway.</p>
+  </div>
+</div>
+
+<p>Check that claim before arguing it: the <a href="lab.html#compare">lab's comparison table</a>
+shows how close the held-out RMSEs are. If two models are within a rupee of each other, the
+tie-breaker is operational rather than statistical, and saying so explicitly earns the marks.</p>
+
+</article>
+<aside class="toc" data-toc></aside>
+</div>
+</main>
+
+<script defer src="assets/js/data.js"></script>
+<script defer src="assets/js/mlcore.js"></script>
+<script defer src="assets/js/plot.js"></script>
+<script defer src="assets/js/prep.js"></script>
+<script defer src="assets/js/uber.js"></script>
+</body>
+</html>

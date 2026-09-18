@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syllabus — Regularized Regression</title>
+<meta name="description" content="Six-week schedule, learning outcomes, assessment weights and prerequisites.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Course outline</div>
+    <h1>Syllabus</h1>
+    <p class="lede">Six weeks, twelve contact hours, one case study carried end to end. Assessment
+    is entirely through the surge-pricing build; there is no separate problem set.</p>
+  </div>
+</section>
+
+<main class="wrap">
+<div class="split">
+<article>
+
+<h2 id="outcomes">Learning outcomes</h2>
+<p>By the end of the module a student should be able to:</p>
+<ol>
+  <li>Derive the OLS estimator from the Gaussian likelihood and state which assumption each step
+  depends on.</li>
+  <li>Convert a prior on the coefficients into a penalty term, in both directions —
+  given a penalty, name the prior it corresponds to.</li>
+  <li>Implement Ridge in closed form and Lasso by coordinate descent, without a library.</li>
+  <li>Diagnose collinearity from the correlation matrix and condition number, and predict before
+  fitting how each estimator will respond.</li>
+  <li>Select a penalty by cross-validation, and explain why the training RMSE is not evidence.</li>
+  <li>Choose between the four estimators for a stated business constraint (interpretability,
+  stability, latency, regulatory review) and defend the choice.</li>
+  <li>Report a coefficient with a credible interval and say what the interval does and
+  does not mean.</li>
+</ol>
+
+<h2 id="prereq">Prerequisites</h2>
+<div class="grid g3">
+  <div class="card"><h4 style="margin-top:0">Linear algebra</h4>
+    <p class="small muted">Matrix multiplication, inverses, rank, eigenvalues. The SVD is used
+    but re-introduced in Module 4.</p></div>
+  <div class="card"><h4 style="margin-top:0">Probability</h4>
+    <p class="small muted">Joint and conditional densities, Gaussian and Laplace distributions,
+    Bayes' theorem. No measure theory.</p></div>
+  <div class="card"><h4 style="margin-top:0">Python</h4>
+    <p class="small muted">NumPy array manipulation. Pandas and Matplotlib are used but can be
+    picked up from the starter notebooks.</p></div>
+</div>
+
+<h2 id="schedule">Weekly schedule</h2>
+
+<div class="timeline">
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 1</span><span class="badge mle">MLE</span></div>
+    <h3 style="margin-top:0">The linear model, least squares, and the likelihood behind it</h3>
+    <p class="small">Design matrices and the normal equations. Projection geometry. Gaussian
+    likelihood ⇒ least squares. Estimating $\sigma^2$. First look at the Mumbai dataset and its
+    correlation structure.</p>
+    <p class="small muted"><strong>Lab:</strong> compute $X^\top X$ and $X^\top y$ by hand for five
+    trips; invert the $2\times 2$ system; watch the coefficients blow up.
+    <strong>Reading:</strong> <a href="theory.html#linear">Theory §1–2</a>.
+    <strong>Due:</strong> Task 1.</p>
+  </div>
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 2</span><span class="badge ridge">Ridge</span></div>
+    <h3 style="margin-top:0">Priors, MAP, and Ridge regression</h3>
+    <p class="small">Bayes' theorem for parameters. $-\log p(w)$ as a penalty. Gaussian prior ⇒ $\ell_2$.
+    $\lambda = \sigma^2/\tau^2$. Shrinkage in the SVD basis, effective degrees of freedom, and the
+    equal-split argument for correlated columns.</p>
+    <p class="small muted"><strong>Lab:</strong> Ridge coefficient paths; find where
+    <code>is_peak</code> and <code>is_rain</code> converge.
+    <strong>Reading:</strong> <a href="theory.html#map">Theory §3–4</a>.
+    <strong>Due:</strong> Task 2.</p>
+  </div>
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 3</span><span class="badge lasso">Lasso</span></div>
+    <h3 style="margin-top:0">Sparsity: the Laplace prior and coordinate descent</h3>
+    <p class="small">Soft-thresholding derived from the subdifferential. Coordinate descent
+    implemented line by line. The diamond-corner geometry. Selection instability among correlated
+    features, the $p > n$ saturation bound, and the bias of the survivors.</p>
+    <p class="small muted"><strong>Lab:</strong> Lasso on the 120-feature "new city launch" data
+    where $p \gg n$; recover the six real drivers.
+    <strong>Reading:</strong> <a href="theory.html#lasso">Theory §5</a>.
+    <strong>Due:</strong> Task 3.</p>
+  </div>
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 4</span><span class="badge enet">Elastic Net</span></div>
+    <h3 style="margin-top:0">Elastic Net and the grouping effect</h3>
+    <p class="small">Both penalties at once. The Zou–Hastie grouping bound. Double shrinkage and
+    its correction. Choosing $\alpha$ and $\rho$ by two-dimensional cross-validation, and why the
+    CV curve is flat-bottomed more often than students expect.</p>
+    <p class="small muted"><strong>Lab:</strong> construct <code>is_bad_weather</code> and show the
+    three estimators disagree exactly as theory predicts.
+    <strong>Reading:</strong> <a href="theory.html#enet">Theory §6</a>.
+    <strong>Due:</strong> Task 4.</p>
+  </div>
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 5</span><span class="badge ok">Deployment</span></div>
+    <h3 style="margin-top:0">The surge engine: from coefficients to a price</h3>
+    <p class="small">Demand and supply forecasts as separate regressions. The multiplicative-to-additive
+    redesign and why it is incentive-compatible. Price caps, the no-surge rule, censored targets, and
+    what a cap does to your estimates. Latency and retraining cadence.</p>
+    <p class="small muted"><strong>Lab:</strong> ship the decision rule; simulate 7 pm in BKC in the rain.
+    <strong>Reading:</strong> <a href="uber.html">Case study</a>.
+    <strong>Due:</strong> Task 5.</p>
+  </div>
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 6</span><span class="badge ok">Bayes</span></div>
+    <h3 style="margin-top:0">Uncertainty, ethics, and model choice</h3>
+    <p class="small">The full Gaussian posterior and credible intervals. Posterior predictive
+    variance. Empirical Bayes for $\lambda$. Surge caps as a fairness constraint; what a model
+    trained on censored prices learns. Seminar: where each estimator actually ships.</p>
+    <p class="small muted"><strong>Lab:</strong> quote a surge with an honest error bar.
+    <strong>Reading:</strong> <a href="theory.html#bayes">Theory §7</a>,
+    <a href="applications.html">Applications</a>.
+    <strong>Due:</strong> Bonus task + final write-up.</p>
+  </div>
+</div>
+
+<h2 id="assessment">Assessment</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Component</th><th class="num">Weight</th><th>What is actually marked</th></tr></thead>
+  <tbody>
+    <tr><td>Task 1 — MLE / OLS by hand</td><td class="num">10%</td>
+        <td>Correct hand computation of $X^\top X$, and an account of why the coefficients are
+        unstable rather than just that they are.</td></tr>
+    <tr><td>Task 2 — Ridge</td><td class="num">20%</td>
+        <td>Closed-form implementation, the coefficient path plot, and identification of the
+        λ that minimises held-out error — with the selection method stated.</td></tr>
+    <tr><td>Task 3 — Lasso</td><td class="num">20%</td>
+        <td>Working coordinate descent matching <code>sklearn</code> to 3 decimals, plus the
+        feature-selection argument on the $p \gg n$ data.</td></tr>
+    <tr><td>Task 4 — Elastic Net</td><td class="num">20%</td>
+        <td>The three-way comparison on the correlated group, and an explanation of the grouping
+        effect that does not restate the result.</td></tr>
+    <tr><td>Task 5 — Surge engine</td><td class="num">20%</td>
+        <td>End-to-end decision rule with cap and threshold, the BKC simulation, and a deployment
+        recommendation with a defensible reason.</td></tr>
+    <tr><td>Bonus — Bayesian posterior</td><td class="num">+10%</td>
+        <td>Credible intervals, and a correct statement of what they mean.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct">Marking note</span>
+  <p>A model that fits the training set better is not a better model. Reporting training RMSE as
+  evidence of quality loses marks in every task. Report held-out or cross-validated error, and say
+  which.</p>
+</div>
+
+<h2 id="tools">Software</h2>
+<p>Python 3.10+, NumPy, pandas, Matplotlib and scikit-learn. Everything runs in Colab without
+installation. Implement each estimator from scratch first; <code>sklearn</code> is permitted only as
+a correctness check.</p>
+
+<div class="dl-row">
+  <a class="btn primary" href="assignments/Regression_Assignment.pdf">Assignment brief (PDF)</a>
+  <a class="btn" href="assignments/Regression_Assignment.docx">Assignment brief (Word)</a>
+  <a class="btn" href="notebooks.html">Starter notebooks</a>
+  <a class="btn" href="data/uber_surge_mumbai.csv">Dataset (CSV)</a>
+</div>
+
+<h2 id="integrity">Collaboration policy</h2>
+<p>Discuss freely; write alone. Comparing numerical answers with a classmate is fine — if your
+Ridge path and theirs disagree, one of you has a bug and finding it is the exercise. Submitted code
+and prose must be your own. If you use an AI assistant, say so in one line at the top of the
+notebook and state what you asked it.</p>
+
+</article>
+<aside class="toc" data-toc></aside>
+</div>
+</main>
+</body>
+</html>

@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assignments — Regularized Regression</title>
+<meta name="description" content="Five graded tasks plus a Bayesian bonus: build a surge pricing engine from MLE, Ridge, Lasso and Elastic Net.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Assessment · 100% of the module</div>
+    <h1>Build a surge pricing engine</h1>
+    <p class="lede">Five tasks, about three and a half hours of work, building one system end to
+    end. Each is marked separately, and each feeds the next.</p>
+    <div class="dl-row">
+      <a class="btn primary" href="assignments/Regression_Assignment.pdf">Download brief (PDF)</a>
+      <a class="btn" href="assignments/Regression_Assignment.docx">Download brief (Word)</a>
+      <a class="btn" href="assignments/Regression_Assignment_Solutions.pdf">Model solutions (PDF)</a>
+      <a class="btn" href="data/uber_surge_mumbai.csv" download>Dataset</a>
+      <a class="btn" href="notebooks.html">Notebooks</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+<div class="split">
+<article>
+
+<h2 id="setup">Assumptions you are given</h2>
+<p>Fixed for every task. Several are choices a real team would have to justify, and questioning
+them is worth marks.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Assumption</th><th>Consequence for your model</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>City is gridded into 500 m × 500 m cells; time into 5-minute buckets.</td>
+        <td>Each row is one cell-bucket. Spatial correlation between neighbouring cells is
+        <em>ignored</em> — a real simplification, and worth one sentence in your write-up.</td></tr>
+    <tr><td>2</td><td>Additive pricing: $\text{final} = \text{base} + \text{surge}$, with
+        $\text{base} = 40 + 12\,d_{\text{km}} + 2\,t_{\text{min}}$.</td>
+        <td>You model the surge term only. The base is deterministic and is not a regression.</td></tr>
+    <tr><td>3</td><td>Gaussian likelihood: $y \sim \mathcal{N}(Xw, \sigma^2)$ with $\sigma = 10$ ₹.</td>
+        <td>Least squares is the MLE. σ is <em>given</em>, not estimated, so λ can be computed
+        rather than only tuned.</td></tr>
+    <tr><td>4</td><td>Ridge prior $w \sim \mathcal{N}(0, \tau^2)$ with $\tau = 1$.</td>
+        <td>$\lambda = \sigma^2/\tau^2 = 100$. Compare this with the λ cross-validation picks —
+        they will not agree, and explaining the disagreement is part of Task 2.</td></tr>
+    <tr><td>5</td><td>Lasso prior $w \sim \text{Laplace}(0, b)$ with $b = 5$.</td>
+        <td>$\lambda = 2\sigma^2/b = 40$ in the $\lVert y-Xw\rVert^2 + \lambda\lVert w\rVert_1$
+        parameterisation. Watch the scaling when you compare with <code>sklearn</code> — see the
+        note in Task 3.</td></tr>
+    <tr><td>6</td><td>Policy: surge capped at ₹150; surge set to 0 when $R/S &lt; 1.5$.</td>
+        <td>The cap censors 21 of the 200 targets. Your coefficients on the drivers of extreme
+        surge are biased toward zero as a result.</td></tr>
+    <tr><td>7</td><td>Split is time-based: trips 1–150 train, 151–200 test.</td>
+        <td>Do not shuffle. A random split would leak information across time and flatter every
+        model equally.</td></tr>
+    <tr><td>8</td><td>Standardize features before any penalized fit.</td>
+        <td>Penalties are not scale-invariant. Fit on standardized columns; report coefficients in
+        whichever units you state clearly.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct">Non-negotiable</span>
+  <p>Tasks 1–3 must be implemented <strong>from scratch with NumPy</strong>. Call
+  <code>scikit-learn</code> only to verify, and show both numbers when you do. A submission that
+  calls <code>Ridge()</code> for Task 2 earns zero for that task regardless of the analysis around
+  it.</p>
+</div>
+
+<!-- ============== TASK 1 ============== -->
+<h2 id="t1">Task 1 · Maximum likelihood, by hand <span class="badge mle">10 marks · 30 min</span></h2>
+
+<p><strong>Goal:</strong> derive the OLS estimator numerically, then watch it fail twice: once by
+becoming unstable, once by ceasing to exist.</p>
+
+<h3 id="t1a">1a · An ill-conditioned pair</h3>
+<p>Use <code>is_rain</code> and <code>traffic_speed_kmph</code> on the <strong>first six trips</strong>,
+standardized using those six rows only.</p>
+<ol>
+  <li>Compute $X^\top X$ (a $2\times2$ matrix) and $X^\top y$ <em>by hand</em> — show the arithmetic,
+  not just the NumPy output.</li>
+  <li>Report the sample correlation between the two columns and the determinant of $X^\top X$.</li>
+  <li>Invert analytically using
+  $\begin{pmatrix}a&amp;b\\c&amp;d\end{pmatrix}^{-1} = \frac{1}{ad-bc}\begin{pmatrix}d&amp;-b\\-c&amp;a\end{pmatrix}$
+  and obtain $\hat w_{\text{MLE}}$.</li>
+  <li>Predict the surge for <strong>trip 2</strong> (19:00, peak and rain, 6 drivers) and compare
+  with the ₹150 actually charged.</li>
+  <li><strong>Now add trips one at a time.</strong> Refit on the first $n = 6, 7, \dots, 15$ trips and
+  tabulate, for each $n$: the correlation, the determinant, both coefficients, and how far each
+  coefficient moved from the previous row.</li>
+</ol>
+
+<div class="callout warn">
+  <span class="ct">What you should find — and must explain</span>
+  <p>The two columns are correlated at about $-0.94$ on these rows. Between $n=6$ and $n=7$ one
+  coefficient moves by roughly <strong>₹11 per standard deviation</strong>, and keeps swinging for
+  several more rows. One additional observation changes what the model says about rain by an amount
+  comparable to the effect itself.</p>
+  <p>Marks are for the explanation, not the table. Connect the swing to the determinant and the
+  $-r$ off-diagonal of the inverse. "The coefficients are unstable" is the symptom; "the determinant
+  is 4.46, and the inverse's off-diagonal makes the two coefficients trade off almost one-for-one,
+  so noise in either column is amplified into both" is a diagnosis.</p>
+</div>
+
+<h3 id="t1b">1b · A pair where OLS does not exist</h3>
+<p>Now use <code>is_rain</code> and the derived
+<code>is_bad_weather = (is_rain == 1) &amp; (traffic_speed_kmph &lt; 25)</code> on the
+<strong>first ten trips</strong>.</p>
+<ol>
+  <li>Print the two columns side by side. What do you notice?</li>
+  <li>Compute $X^\top X$ and its determinant. Try to invert it and report exactly what happens.</li>
+  <li>State, in one sentence, what "the maximum likelihood estimate does not exist" means here —
+  not "NumPy raised an error" but what is true about the <em>likelihood surface</em>.</li>
+  <li>Find the smallest $n$ at which the problem becomes solvable, and say what changed in the data
+  at that row.</li>
+  <li>Would Ridge return an answer on the first ten trips? Explain why, in terms of eigenvalues.
+  (You do not need to compute it yet — Task 2 will.)</li>
+</ol>
+
+<h3 id="t1c">1c · The real thing</h3>
+<ol>
+  <li>Fit all eight base features on the full 150-trip training set. Report the coefficients, the
+  condition number of $X^\top X$, and train and test RMSE.</li>
+  <li>Compare that condition number with the ones from 1a. Is the full problem well conditioned?
+  If so, say plainly that <em>this dataset does not need regularization at this sample size</em> —
+  and keep that conclusion in mind for Task 2, where cross-validation will agree with you.</li>
+</ol>
+
+<p class="small muted"><strong>Check yourself:</strong> <a href="algorithms.html#ols">Walkthrough 1</a>
+runs these exact computations step by step, and <a href="lab.html#collinear">Lab §5</a> plots the
+coefficient thrashing as $n$ grows. Use them to confirm your hand arithmetic, not to replace it.</p>
+
+<!-- ============== TASK 2 ============== -->
+<h2 id="t2">Task 2 · Ridge as MAP <span class="badge ridge">20 marks · 45 min</span></h2>
+
+<p><strong>Goal:</strong> implement the Gaussian-prior MAP estimator and read a coefficient
+path.</p>
+<ol>
+  <li>Implement $\hat w = (X^\top X + \alpha I)^{-1} X^\top y$ with <code>np.linalg.solve</code>
+  (not <code>inv</code> — say why in one line).</li>
+  <li>Fit for $\alpha \in \{0.1, 1, 10, 100, 1000\}$ on the eight base features. Tabulate all eight
+  coefficients at each α.</li>
+  <li><strong>Plot the coefficient path:</strong> α on a log x-axis, coefficients on y, one line per
+  feature. This is Deliverable 1.</li>
+  <li>Identify the α at which <code>is_peak</code> and <code>is_rain</code> come closest together,
+  and explain the convergence using the equal-split argument.</li>
+  <li>Compute training and test RMSE at each α. Then run <strong>5-fold cross-validation on the
+  training split only</strong> over a log grid and report the CV-optimal α.</li>
+  <li>Assumption 4 says $\lambda = \sigma^2/\tau^2 = 100$. Does CV agree? If not, which would you
+  trust, and what does the disagreement tell you about the prior?</li>
+  <li>Verify against <code>sklearn.linear_model.Ridge</code>. Note that its <code>alpha</code> uses
+  the same convention as your closed form; state the match to 3 decimals.</li>
+</ol>
+
+<div class="callout tip">
+  <span class="ct">Expected finding, stated in advance</span>
+  <p>Cross-validation will choose an α far below 100, possibly near zero. That is not a bug: with
+  150 trips and 8 features the data is plentiful relative to the parameters, and the prior
+  $\tau = 1$ is more confident than the evidence warrants. Say so rather than forcing the two to
+  agree.</p>
+</div>
+
+<!-- ============== TASK 3 ============== -->
+<h2 id="t3">Task 3 · Lasso and coordinate descent <span class="badge lasso">20 marks · 45 min</span></h2>
+
+<p><strong>Goal:</strong> implement soft-thresholding, then use it on a real selection problem.</p>
+
+<h3 id="t3a">3a · The algorithm</h3>
+<ol>
+  <li>Implement <code>soft_threshold(rho, gamma)</code> in three lines.</li>
+  <li>Implement cyclic coordinate descent for the objective
+  $\frac{1}{2n}\lVert y - Xw\rVert^2 + \alpha\lVert w\rVert_1$, updating
+  $w_j \leftarrow S(\rho_j, \alpha) / (\lVert x_j\rVert^2/n)$ and stopping when the largest
+  coefficient change falls below $10^{-7}$.</li>
+  <li>Verify against <code>sklearn.linear_model.Lasso(alpha=...)</code> to <strong>3 decimal
+  places</strong> at three different α. If they disagree, your objective is scaled differently —
+  find the factor rather than adjusting until it matches.</li>
+  <li>Plot the Lasso path over a log α grid and record the <strong>order of elimination</strong>.</li>
+</ol>
+
+<h3 id="t3b">3b · The new-city launch</h3>
+<p>Load <code>new_city_features.csv</code>: 60 trips, 120 candidate features. Six are real drivers,
+and <strong>each real driver has a decoy planted beside it, correlated at $r \approx 0.9$–$0.96$</strong>.
+Ground truth is in <code>new_city_truth.csv</code> — do not open it until step 3.</p>
+<ol>
+  <li>Explain in one sentence why OLS cannot be computed here at all.</li>
+  <li>Run your Lasso across $\alpha \in \{1, 2, 4, 6, 8, 10, 12, 15, 20, 25\}$. For each, record how
+  many features survive.</li>
+  <li>Now open the truth file. For each α report <strong>recall</strong> (how many of the six you
+  found) and <strong>precision</strong> (what fraction of your selections are real). Plot both
+  against α. Which α would you hand to the city-ops team, and why is it not the α with the best
+  precision?</li>
+  <li><strong>The interesting part.</strong> Somewhere in that sweep, Lasso drops a real driver
+  while keeping a feature that is not real. Identify which real driver goes first, which feature
+  survives in its place, and the correlation between them. Then explain why this is the expected
+  behaviour of an $\ell_1$ penalty rather than a failure of your code.</li>
+  <li>Repeat with Elastic Net at $\rho = 0.5$ and at $\rho = 0.9$. Does recall improve? Does
+  precision? Compare the <em>number of features selected</em> — and if Elastic Net turns out to be a
+  worse tool for this particular job, say so and explain what the $\ell_2$ term is doing to
+  sparsity.</li>
+  <li>State the theoretical bound on how many features Lasso can select when $n = 60$, and say
+  whether you ever came near it.</li>
+</ol>
+
+<div class="callout">
+  <span class="ct">Do not assume the fancier method wins</span>
+  <p>Step 5 has a counter-intuitive answer here, and reporting it honestly is worth more than
+  reporting the answer you expected. The grouping effect is what you want when a correlated group
+  is the finding (Task 4), and not what you want when the correlated partner is a decoy. Knowing
+  which situation you are in is the skill being assessed.</p>
+</div>
+
+<p class="small muted"><strong>Check yourself:</strong> <a href="lab.html#newcity">Lab §6</a> runs
+this live.</p>
+
+<!-- ============== TASK 4 ============== -->
+<h2 id="t4">Task 4 · Elastic Net and the grouping effect <span class="badge enet">20 marks · 60 min</span></h2>
+
+<p><strong>Goal:</strong> show that the three estimators handle a correlated group in three
+distinguishable ways.</p>
+<ol>
+  <li>Construct the derived feature
+  <code>is_bad_weather = (is_rain == 1) &amp; (traffic_speed_kmph &lt; 25)</code>. Report its
+  correlation with each of its two parents.</li>
+  <li>Fit all three estimators on the nine features (eight base plus the new one), each tuned by
+  5-fold CV. Report the coefficients on <code>is_rain</code>, <code>traffic_speed</code> and
+  <code>is_bad_weather</code> in a single table.</li>
+  <li>Verify the three predicted behaviours:
+    <ul>
+      <li><strong>Ridge</strong> keeps all three with comparable magnitudes;</li>
+      <li><strong>Lasso</strong> concentrates on roughly one and shrinks the others hard;</li>
+      <li><strong>Elastic Net</strong> keeps the group together while still zeroing
+      <code>is_weekend</code>.</li>
+    </ul>
+    If any of the three does not behave as predicted, say so and investigate why. An honest
+    negative result is worth more than a forced positive one.</li>
+  <li>Sweep $\rho \in \{0.1, 0.3, 0.5, 0.7, 0.9, 1.0\}$ at fixed α and plot the three group
+  coefficients against ρ. At what ρ does the group start to break apart?</li>
+  <li>Test the stability claim directly: <strong>bootstrap</strong> the training set 200 times,
+  refit Lasso and Elastic Net each time, and report how often each of the three weather features is
+  selected. This is the empirical version of the grouping bound.</li>
+</ol>
+
+<div class="callout">
+  <span class="ct">This is the task that separates grades</span>
+  <p>Step 5 is the one that matters. "Lasso picks one at random" is a claim about variability
+  across resamples, and the bootstrap measures it. A selection-frequency table proves the point
+  rather than asserting it.</p>
+</div>
+
+<!-- ============== TASK 5 ============== -->
+<h2 id="t5">Task 5 · The surge engine <span class="badge ok">20 marks · 30 min</span></h2>
+
+<p><strong>Goal:</strong> assemble a system rather than a model.</p>
+<ol>
+  <li>Wrap your best estimator in a function
+  <code>price(hour, is_rain, traffic, drivers, requests, distance_km, ...) → dict</code> returning
+  the raw model output, the surge after policy, the base fare, and the final fare.</li>
+  <li>Implement the policy layer <strong>outside</strong> the model:
+  <pre><code>ratio = requests / drivers
+if ratio &lt; 1.5:        surge = 0
+surge = min(max(surge, 0), 150)
+final = base + surge</code></pre></li>
+  <li><strong>Simulate:</strong> 19:00, BKC, raining, 5 drivers, 25 open requests, 8 km trip.
+  Report every intermediate quantity. Should a driver 3 km away in Andheri reposition?
+  Use the rule "yes if surge &gt; ₹50" and state what that threshold is implicitly assuming
+  about the driver's cost.</li>
+  <li>Sweep the drivers-available count from 1 to 40 with everything else fixed, and plot the
+  resulting surge. Mark where the cap binds and where the threshold switches surge off. Comment on
+  the discontinuity at $R/S = 1.5$ — is a step function the right policy, and what would a rider
+  experience just either side of it?</li>
+  <li>Compute the price elasticity your model implies: if surge rises by ₹50, by how much would
+  demand have to fall for $R/S$ to return to 1? Explain why <strong>your data cannot answer this</strong>
+  and what experiment would.</li>
+</ol>
+
+<p class="small muted"><strong>Check yourself:</strong> <a href="uber.html#worked">Case study §7</a>
+is a working reference implementation of steps 1–3.</p>
+
+<!-- ============== BONUS ============== -->
+<h2 id="bonus">Bonus · The full posterior <span class="badge ok">+10 marks</span></h2>
+<ol>
+  <li>Compute the Gaussian posterior $\Sigma = (X^\top X/\sigma^2 + I/\tau^2)^{-1}$,
+  $\mu = \Sigma X^\top y/\sigma^2$ with $\sigma = 10$, $\tau = 1$.</li>
+  <li>Confirm numerically that $\mu$ equals your Ridge solution at $\lambda = 100$. Explain why
+  in one sentence.</li>
+  <li>Report each coefficient as $\hat w_j \pm 1.96\sqrt{\Sigma_{jj}}$. Which intervals contain
+  zero? What does that tell you, and how does it compare with what Lasso decided about the same
+  features?</li>
+  <li>For the BKC scenario, compute the posterior predictive variance
+  $x_\star^\top \Sigma x_\star + \sigma^2$ and quote the surge as "₹X ± ₹Y".</li>
+  <li>Which of the two terms in that variance dominates? What would you have to do to reduce each
+  of them?</li>
+  <li>Write two sentences a product manager could put in front of a rider. Then write the one
+  sentence you would <em>refuse</em> to let them write, and say why.</li>
+</ol>
+
+<!-- ============== DELIVERABLES ============== -->
+<h2 id="deliverables">What to hand in</h2>
+
+<div class="grid g3">
+  <div class="card">
+    <div class="card-num">DELIVERABLE 1</div>
+    <h4 style="margin-top:0">Coefficient path figure</h4>
+    <p class="small muted">One page, three panels: Ridge, Lasso and Elastic Net paths on shared
+    axes, with the CV-optimal α labelled on each. A reader should be able to tell which estimator
+    zeroes coefficients without reading the text.</p>
+  </div>
+  <div class="card">
+    <div class="card-num">DELIVERABLE 2</div>
+    <h4 style="margin-top:0">Comparison table</h4>
+    <p class="small muted">Train RMSE, test RMSE, test R², non-zero count and chosen α for all four
+    estimators. State whether the differences exceed resampling noise.</p>
+  </div>
+  <div class="card">
+    <div class="card-num">DELIVERABLE 3</div>
+    <h4 style="margin-top:0">Deployment recommendation</h4>
+    <p class="small muted">300 words. Which estimator ships for Mumbai and why. Name the deciding
+    constraint (interpretability, stability across refits, latency or accuracy) and be honest if
+    accuracy is not it.</p>
+  </div>
+</div>
+
+<h2 id="rubric">Marking rubric</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Band</th><th>Looks like</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Distinction (70+)</strong></td>
+        <td>Correct implementations, with a write-up that explains mechanisms rather than restating
+        outputs. Reports at least one result that contradicted expectation and investigates it.
+        Notices the censoring at ₹150, or the non-linear $50/(S+1)$ term, unprompted. Distinguishes
+        "these models differ" from "these models differ by more than noise".</td></tr>
+    <tr><td><strong>Merit (60–69)</strong></td>
+        <td>All five tasks complete and correct. Figures are labelled and readable. Cross-validation
+        is done on the training split only. Conclusions follow from the evidence presented.</td></tr>
+    <tr><td><strong>Pass (50–59)</strong></td>
+        <td>Estimators implemented and broadly correct; some analysis is thin or descriptive.
+        May confuse training and test error in places, or quote α to spurious precision.</td></tr>
+    <tr><td><strong>Fail</strong></td>
+        <td>Library calls substituted for the required from-scratch implementations; test set used
+        to select hyperparameters; conclusions unsupported by the numbers shown.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout tip">
+  <span class="ct">Three mistakes that cost marks every year</span>
+  <p><strong>1.</strong> Cross-validating on all 200 trips and then reporting test RMSE from the
+  same 200: the test set is now part of model selection and the number means nothing.
+  <strong>2.</strong> Forgetting to standardize before a penalized fit, so <code>traffic_speed</code>
+  (range ≈ 55) is penalized far more than <code>is_rain</code> (range 1).
+  <strong>3.</strong> Reporting that Lasso "selected the important features" without checking
+  selection stability (Task 4, step 5).</p>
+</div>
+
+</article>
+<aside class="toc" data-toc></aside>
+</div>
+</main>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dataset — Regularized Regression</title>
+<meta name="description" content="Explore the 200-trip Mumbai surge dataset: distributions, correlations, and the data generating process.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Data</div>
+    <h1>The Mumbai surge dataset</h1>
+    <p class="lede">200 synthetic trips across ten Mumbai pickup zones, built so the correlations
+    you need to handle are actually present. Read this before fitting anything: most surprising
+    results in the lab are explained by the correlation matrix in §3.</p>
+    <div class="dl-row">
+      <a class="btn primary" href="data/uber_surge_mumbai.csv" download>uber_surge_mumbai.csv</a>
+      <a class="btn" href="data/new_city_features.csv" download>new_city_features.csv (p ≫ n)</a>
+      <a class="btn" href="data/new_city_truth.csv" download>new_city_truth.csv</a>
+      <a class="btn" href="scripts/make_data.py" download>make_data.py</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+<h2 id="overview">1 · What is in it</h2>
+<div class="grid g4" id="dsStats"></div>
+
+<div class="table-wrap" style="margin-top:20px">
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>trip_id</code></td><td>int</td><td>1–200, in time order. The split is time-based: 1–150 train, 151–200 test.</td></tr>
+    <tr><td><code>zone</code></td><td>string</td><td>Pickup area — BKC, Andheri East, Powai, CSMIA T2 and seven others. Not used as a feature; it is there for grouping and plots.</td></tr>
+    <tr><td><code>hour</code></td><td>int 0–23</td><td>Hour of pickup.</td></tr>
+    <tr><td><code>is_peak</code></td><td>0/1</td><td>Derived: 08–10 or 18–21.</td></tr>
+    <tr><td><code>is_weekend</code></td><td>0/1</td><td><strong>True coefficient is exactly zero.</strong> This is the null feature Lasso should delete first.</td></tr>
+    <tr><td><code>is_rain</code></td><td>0/1</td><td>Rain probability is raised during peak hours, which is what makes peak and rain correlated.</td></tr>
+    <tr><td><code>is_event_nearby</code></td><td>0/1</td><td>Stadium, concert or similar within the cell.</td></tr>
+    <tr><td><code>is_airport_pickup</code></td><td>0/1</td><td>CSMIA pickups carry a structural premium.</td></tr>
+    <tr><td><code>traffic_speed_kmph</code></td><td>float</td><td>Mean speed in the cell. Falls in peak and in rain — correlated with both.</td></tr>
+    <tr><td><code>drivers_available_500m</code></td><td>int</td><td>Supply. Enters the true model as $50/(S+1)$, i.e. <em>non-linearly</em>.</td></tr>
+    <tr><td><code>open_requests_500m</code></td><td>int</td><td>Demand.</td></tr>
+    <tr><td><code>historical_demand</code></td><td>float</td><td>Same hour last week — a near-duplicate of <code>open_requests</code>.</td></tr>
+    <tr><td><code>distance_km</code>, <code>time_min</code></td><td>float</td><td>Trip length. Drive the base fare, not the surge.</td></tr>
+    <tr><td><code>base_fare_inr</code></td><td>float</td><td>$40 + 12\,d + 2\,t$.</td></tr>
+    <tr><td><code>surge_additive_inr</code></td><td>float</td><td><strong>The target.</strong> Clipped to [0, 150].</td></tr>
+    <tr><td><code>final_fare_inr</code></td><td>float</td><td>base + surge.</td></tr>
+    <tr><td><code>demand_supply_ratio</code></td><td>float</td><td>requests / drivers. Used by the policy layer, not by the model.</td></tr>
+    <tr><td><code>is_bad_weather</code></td><td>0/1</td><td>Derived: <code>is_rain AND traffic_speed &lt; 25</code>. Deliberately correlated with both parents — this is the Task 4 group.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="dgp">2 · The data generating process</h2>
+<p>Synthetic data, so the truth is known and an estimator can be checked against it. Each trip's
+surge is drawn as</p>
+
+$$ \text{surge} = 40\,\texttt{is\_peak} + 30\,\texttt{is\_rain} + 20\,\texttt{is\_event}
+   + 25\,\texttt{is\_airport} + \frac{50}{S+1} + 2\,(60 - \texttt{traffic}) + \varepsilon,
+   \quad \varepsilon \sim \mathcal{N}(0, 10^2), $$
+
+<p>then clipped to $[0, 150]$. Three consequences carry into every task.</p>
+
+<div class="grid g3">
+  <div class="card">
+    <h4 style="margin-top:0">Two terms are non-linear</h4>
+    <p class="small muted">$50/(S+1)$ and the traffic term are not linear in the raw feature, so a
+    linear model cannot be exactly right. The best achievable RMSE is bounded below by more than the
+    noise σ = 10.</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">One feature is pure noise</h4>
+    <p class="small muted"><code>is_weekend</code> has a true coefficient of exactly zero, so any
+    non-zero estimate is fitted noise. That makes it a good probe for whether the penalty is
+    working.</p>
+  </div>
+  <div class="card">
+    <h4 style="margin-top:0">The target is censored</h4>
+    <p class="small muted"><strong id="dsCap">—</strong> trips sit exactly at the ₹150 cap. Their
+    true surge was higher and never recorded, so coefficients on the drivers of extreme surge are
+    biased toward zero.</p>
+  </div>
+</div>
+
+<h2 id="corr">3 · The correlation matrix</h2>
+<p>Blue is positive, red negative; hover a cell for the exact value. Most of what Ridge, Lasso and
+Elastic Net do differently on this dataset traces back to this figure.</p>
+
+<div class="card" style="overflow-x:auto">
+  <div id="dsHeat"></div>
+</div>
+
+<div class="callout tip">
+  <span class="ct">What to look for</span>
+  <p><code>traffic_speed</code> correlates with almost everything, since peak and rain cause it and
+  it in turn drives surge, which makes it the feature most likely to absorb its neighbours'
+  coefficients. <code>historical_demand</code> and <code>open_requests</code> are near-duplicates, a
+  good pair for the "Lasso picks one arbitrarily" demonstration. <code>is_weekend</code> correlates
+  with nothing, as a null feature should.</p>
+</div>
+
+<h2 id="dists">4 · Distributions</h2>
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:0 1 260px">
+      <label for="dsCol"><span>Column</span></label>
+      <select id="dsCol"></select>
+    </div>
+    <div class="ctl" style="flex:0 1 260px">
+      <label for="dsX"><span>Plot against</span></label>
+      <select id="dsX"></select>
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Colour by</span></label>
+      <div class="seg" id="dsColor">
+        <button data-c="none" class="on">None</button>
+        <button data-c="is_rain">Rain</button>
+        <button data-c="is_peak">Peak</button>
+        <button data-c="split">Train / test</button>
+      </div>
+    </div>
+  </div>
+  <div class="grid g2" style="gap:24px">
+    <div><h4 style="margin:0 0 6px">Histogram</h4><div id="dsHist"></div></div>
+    <div><h4 style="margin:0 0 6px">Scatter</h4><div id="dsScatter"></div>
+      <div class="legend" id="dsScatterLeg"></div></div>
+  </div>
+  <p class="small" id="dsNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<h2 id="table">5 · The raw table</h2>
+<p>Click a header to sort. Filter to see just the rows you care about.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:12px">
+    <div class="ctl" style="flex:1 1 220px">
+      <label for="tblSearch"><span>Filter by zone</span></label>
+      <input type="text" id="tblSearch" placeholder="e.g. BKC">
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Show</span></label>
+      <div class="seg" id="tblFilter">
+        <button data-f="all" class="on">All 200</button>
+        <button data-f="train">Train (1–150)</button>
+        <button data-f="test">Test (151–200)</button>
+        <button data-f="capped">At the ₹150 cap</button>
+        <button data-f="surge">Surge &gt; ₹100</button>
+      </div>
+    </div>
+    <div class="ctl" style="flex:0 0 auto;min-width:0">
+      <label>&nbsp;</label>
+      <button class="btn" id="tblCsv">Download filtered CSV</button>
+    </div>
+  </div>
+  <p class="muted small" id="tblCount"></p>
+  <div class="table-wrap" style="max-height:520px;overflow-y:auto">
+    <table id="dsTable"><thead></thead><tbody></tbody></table>
+  </div>
+</div>
+
+</main>
+
+<script defer src="assets/js/data.js"></script>
+<script defer src="assets/js/mlcore.js"></script>
+<script defer src="assets/js/plot.js"></script>
+<script defer src="assets/js/prep.js"></script>
+<script defer src="assets/js/dataset.js"></script>
+</body>
+</html>

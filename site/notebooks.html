@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebooks — Regularized Regression</title>
+<meta name="description" content="Starter and solution Jupyter notebooks for all five tasks.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Code</div>
+    <h1>Jupyter notebooks</h1>
+    <p class="lede">Two tracks. The <strong>starter</strong> notebooks provide the scaffolding, data
+    loading and plotting, with the estimators left as <code>raise NotImplementedError</code>. The
+    <strong>solution</strong> notebooks are complete and already executed. Use them to check
+    yourself, not to start.</p>
+  </div>
+</section>
+
+<main class="wrap">
+
+<div class="callout tip">
+  <span class="ct">Running them</span>
+  <p>Everything runs on NumPy, pandas, Matplotlib and scikit-learn. In Colab, upload
+  <code>uber_surge_mumbai.csv</code> and <code>new_city_features.csv</code> alongside the notebook;
+  locally, keep them in a <code>data/</code> folder next to it. If a CSV is missing the notebook
+  regenerates it from the same seed.</p>
+</div>
+
+<h2 id="starters">Starter notebooks</h2>
+<div class="grid g2">
+
+  <div class="card">
+    <div class="pill-row"><span class="badge mle">Task 1</span><span class="badge ridge">Task 2</span></div>
+    <h3 style="margin-top:0">01 · Least squares and Ridge</h3>
+    <p class="small">Hand computation of $X^\top X$ on five trips, the determinant, the explicit
+    $2\times2$ inverse; then Ridge in closed form, the coefficient path, and 5-fold CV.
+    Includes the instability table you must fill in.</p>
+    <p class="muted small">≈ 30 cells · NumPy only for the estimators</p>
+    <div class="dl-row" style="margin-bottom:0">
+      <a class="btn primary" href="notebooks/01_mle_and_ridge_starter.ipynb" download>Download starter</a>
+      <a class="btn" href="notebooks/01_mle_and_ridge_solution.ipynb" download>Solution</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pill-row"><span class="badge lasso">Task 3</span></div>
+    <h3 style="margin-top:0">02 · Lasso by coordinate descent</h3>
+    <p class="small">Soft-thresholding from scratch, cyclic coordinate descent, verification against
+    <code>sklearn.Lasso</code> to three decimals, the elimination-order path, and the
+    120-feature / 60-trip new-city selection problem.</p>
+    <p class="muted small">≈ 34 cells · includes the $p \gg n$ dataset</p>
+    <div class="dl-row" style="margin-bottom:0">
+      <a class="btn primary" href="notebooks/02_lasso_coordinate_descent_starter.ipynb" download>Download starter</a>
+      <a class="btn" href="notebooks/02_lasso_coordinate_descent_solution.ipynb" download>Solution</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pill-row"><span class="badge enet">Task 4</span></div>
+    <h3 style="margin-top:0">03 · Elastic Net and the grouping effect</h3>
+    <p class="small">The derived <code>is_bad_weather</code> feature, the three-way comparison on
+    the correlated group, the ρ sweep, and the <strong>bootstrap selection-stability</strong>
+    experiment that turns "Lasso picks one at random" into a measurement.</p>
+    <p class="muted small">≈ 28 cells · 200 bootstrap refits, runs in seconds</p>
+    <div class="dl-row" style="margin-bottom:0">
+      <a class="btn primary" href="notebooks/03_elastic_net_starter.ipynb" download>Download starter</a>
+      <a class="btn" href="notebooks/03_elastic_net_solution.ipynb" download>Solution</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">Task 5</span><span class="badge ok">Bonus</span></div>
+    <h3 style="margin-top:0">04 · The surge engine and the posterior</h3>
+    <p class="small">The <code>price()</code> function with its policy layer, the BKC simulation,
+    the supply sweep with the cap and threshold marked, and then the full Gaussian posterior with
+    credible intervals and predictive variance.</p>
+    <p class="muted small">≈ 30 cells · ends with a deployable function</p>
+    <div class="dl-row" style="margin-bottom:0">
+      <a class="btn primary" href="notebooks/04_surge_engine_and_bayes_starter.ipynb" download>Download starter</a>
+      <a class="btn" href="notebooks/04_surge_engine_and_bayes_solution.ipynb" download>Solution</a>
+    </div>
+  </div>
+
+</div>
+
+<h2 id="all">Everything at once</h2>
+<p>One archive with all eight notebooks, both datasets, the ground-truth file and the generator
+script.</p>
+<div class="dl-row">
+  <a class="btn primary" href="notebooks/regression_course_notebooks.zip" download>Download all (.zip)</a>
+  <a class="btn" href="data/uber_surge_mumbai.csv" download>uber_surge_mumbai.csv</a>
+  <a class="btn" href="data/new_city_features.csv" download>new_city_features.csv</a>
+  <a class="btn" href="scripts/make_data.py" download>make_data.py</a>
+</div>
+
+<h2 id="conventions">Conventions used in the code</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Convention</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Objective is
+        $\frac{1}{2n}\lVert y-Xw\rVert^2 + \alpha\rho\lVert w\rVert_1 + \frac{\alpha(1-\rho)}{2}\lVert w\rVert_2^2$</td>
+        <td>Identical to scikit-learn's <code>ElasticNet</code>, so your solver and the library
+        agree to machine precision. The $1/2n$ matters.</td></tr>
+    <tr><td>Ridge closed form uses $\alpha_{\text{sklearn}} = n\alpha$</td>
+        <td><code>sklearn.Ridge</code> omits the $1/n$. This factor is the most common reason a
+        path plot looks shifted.</td></tr>
+    <tr><td>Standardize on the <em>training</em> split only, then apply to test</td>
+        <td>Computing the mean and sd over all 200 trips leaks test information into training. A
+        small effect here, a bad habit elsewhere.</td></tr>
+    <tr><td>Time-based split, never shuffled</td>
+        <td>Rows are in time order. A random split lets the model see the future.</td></tr>
+    <tr><td><code>np.linalg.solve(A, b)</code> rather than <code>inv(A) @ b</code></td>
+        <td>Faster and numerically better conditioned. The explicit inverse appears exactly once,
+        in Task 1, because there you are asked to look at it.</td></tr>
+    <tr><td>Random seed fixed at 42 everywhere</td>
+        <td>Bootstrap numbers should match the solution notebook exactly; if not, something else
+        differs.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <span class="ct">On using the solutions</span>
+  <p>They are published deliberately: checking an answer against a correct one is how people learn
+  to debug numerical code. But a coordinate descent loop you have read is not one you can write.
+  Attempt each cell first, and if you consult the solution, say so in your submission.</p>
+</div>
+
+<p style="margin-top:2em">The same computations, without leaving the browser, are in the
+<a href="algorithms.html">algorithm walkthroughs</a> and the <a href="lab.html">lab</a>.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regularized Regression — Graduate Course</title>
+<meta name="description" content="A graduate module on MLE, MAP, Ridge, Lasso and Elastic Net, taught through the Uber surge pricing case study.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Graduate module · 6 weeks · Python</div>
+    <h1 style="max-width:16ch">From Likelihood to&nbsp;Lasso</h1>
+    <p class="lede">One idea runs through the whole course: <strong>every regularizer is a prior
+    in disguise</strong>. Least squares is maximum likelihood; Ridge is MAP with a Gaussian prior;
+    Lasso is MAP with a Laplace prior; Elastic Net is both. We derive each, then build them from
+    scratch inside a surge-pricing engine for Mumbai.</p>
+    <div class="dl-row">
+      <a class="btn primary" href="syllabus.html">Start with the syllabus →</a>
+      <a class="btn" href="lab.html">Open the interactive lab</a>
+      <a class="btn" href="assignments.html">Assignment brief</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+  <!-- ============ live teaser ============ -->
+  <h2 id="teaser" style="margin-top:1.4em">Ridge and Lasso, same budget</h2>
+  <p class="lede" style="font-size:1.02rem">Real fits, computed in your browser on the 200-trip
+  Mumbai dataset. Comparing the two at equal α would be unfair, since a squared penalty and an
+  absolute-value penalty bite at different rates. The slider instead fixes the <strong>total
+  coefficient mass</strong> each model may spend, so both are always equally shrunk and the only
+  difference left is how they spend it.</p>
+
+  <div class="card" style="padding:22px">
+    <div class="controls" style="margin-bottom:6px">
+      <div class="ctl" style="flex:2 1 320px">
+        <label for="teaseLam"><span>Shrinkage budget&nbsp; s = ‖w‖₁ / ‖w<sub>OLS</sub>‖₁</span>
+          <span class="val" id="teaseLamV">100%</span></label>
+        <input type="range" id="teaseLam" min="0" max="1" step="0.005" value="1">
+        <div class="muted small" style="display:flex;justify-content:space-between">
+          <span>0% — every coefficient crushed</span><span>100% — plain least squares</span>
+        </div>
+      </div>
+      <div class="ctl" style="flex:0 0 auto;min-width:0">
+        <label>&nbsp;</label>
+        <button class="btn" id="teaseReset">Reset</button>
+      </div>
+    </div>
+    <div class="grid g2" style="gap:24px">
+      <div>
+        <h4 style="margin:0 0 2px">Ridge <span class="badge ridge">Gaussian prior</span></h4>
+        <p class="muted small" style="margin:0 0 6px">Shrinks together, never to exactly zero.</p>
+        <div id="teaseRidge"></div>
+      </div>
+      <div>
+        <h4 style="margin:0 0 2px">Lasso <span class="badge lasso">Laplace prior</span></h4>
+        <p class="muted small" style="margin:0 0 6px">Shrinks and <em>deletes</em>. Watch the count.</p>
+        <div id="teaseLasso"></div>
+      </div>
+    </div>
+    <div class="grid g4" style="margin-top:16px">
+      <div class="stat"><div class="k">Ridge features kept</div><div class="v" id="teaseRidgeK">8</div><div class="sub">of 8</div></div>
+      <div class="stat"><div class="k">Lasso features kept</div><div class="v" id="teaseLassoK">8</div><div class="sub">of 8</div></div>
+      <div class="stat"><div class="k">Ridge test RMSE</div><div class="v" id="teaseRidgeR">—</div><div class="sub">₹ on held-out trips</div></div>
+      <div class="stat"><div class="k">Lasso test RMSE</div><div class="v" id="teaseLassoR">—</div><div class="sub">₹ on held-out trips</div></div>
+    </div>
+    <p class="muted small" id="teaseNote" style="margin:14px 0 0"></p>
+  </div>
+
+  <!-- ============ modules ============ -->
+  <h2 id="modules">Eight modules</h2>
+  <p>Each module is one lecture plus one lab. The mathematics is developed on the left,
+  the production system is built on the right, and they meet in the middle.</p>
+
+  <div class="grid g3">
+    <a class="card" href="theory.html#linear">
+      <div class="card-num">MODULE 01</div>
+      <h3>The linear model &amp; least squares</h3>
+      <p class="muted small">Design matrices, the normal equations, projection geometry, and what
+      goes wrong when $X^\top X$ is close to singular.</p>
+    </a>
+    <a class="card" href="theory.html#mle">
+      <div class="card-num">MODULE 02</div>
+      <h3>Maximum likelihood</h3>
+      <p class="muted small">Gaussian noise gives least squares directly from the likelihood.
+      Estimating $\sigma^2$, and what MLE guarantees asymptotically.</p>
+    </a>
+    <a class="card" href="theory.html#map">
+      <div class="card-num">MODULE 03</div>
+      <h3>Bayes &amp; the MAP estimator</h3>
+      <p class="muted small">Posterior ∝ likelihood × prior. Taking logs turns a prior into a
+      penalty — the result everything else depends on.</p>
+    </a>
+    <a class="card" href="theory.html#ridge">
+      <div class="card-num">MODULE 04</div>
+      <h3>Ridge — the Gaussian prior</h3>
+      <p class="muted small">Closed form, shrinkage in the SVD basis, effective degrees of
+      freedom, and why correlated features share weight.</p>
+    </a>
+    <a class="card" href="theory.html#lasso">
+      <div class="card-num">MODULE 05</div>
+      <h3>Lasso — the Laplace prior</h3>
+      <p class="muted small">Soft-thresholding derived by hand, the diamond-corner argument,
+      coordinate descent, and the caveats about selection.</p>
+    </a>
+    <a class="card" href="theory.html#enet">
+      <div class="card-num">MODULE 06</div>
+      <h3>Elastic Net</h3>
+      <p class="muted small">The grouping effect, Zou &amp; Hastie's double-shrinkage
+      correction, and when the extra hyperparameter is worth it.</p>
+    </a>
+    <a class="card" href="theory.html#bayes">
+      <div class="card-num">MODULE 07</div>
+      <h3>Beyond the point estimate</h3>
+      <p class="muted small">The full Gaussian posterior, credible intervals, predictive
+      uncertainty, and empirical Bayes for λ.</p>
+    </a>
+    <a class="card" href="uber.html">
+      <div class="card-num">MODULE 08</div>
+      <h3>Case study: surge pricing</h3>
+      <p class="muted small">Demand and supply forecasts, additive pricing, the price cap, and
+      which estimator to deploy.</p>
+    </a>
+    <a class="card" href="algorithms.html" style="border-color:var(--accent)">
+      <div class="card-num">WALKTHROUGHS</div>
+      <h3>Watch the algorithms run</h3>
+      <p class="muted small">Step through the normal equations, ridge shrinkage, Lasso coordinate
+      descent and Bayesian updating, one line of arithmetic at a time.</p>
+    </a>
+    <a class="card" href="applications.html">
+      <div class="card-num">SEMINAR</div>
+      <h3>Where this ships</h3>
+      <p class="muted small">Recommenders, genomics, credit scoring, ad ranking and sensor
+      fusion, each mapped to the estimator it relies on.</p>
+    </a>
+  </div>
+
+  <!-- ============ decision table ============ -->
+  <h2 id="choose">Which estimator, and when</h2>
+  <p>A starting rule of thumb. The rest of the course is about when to depart from it.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Situation</th><th>Estimator</th><th>Prior on $w$</th><th>Penalty</th><th>What it buys you</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>$n \gg p$, features roughly independent</td>
+          <td><span class="badge mle">MLE / OLS</span></td>
+          <td>none (flat)</td><td>none</td>
+          <td>Unbiased and efficient, with nothing to tune.</td>
+        </tr>
+        <tr>
+          <td>Features correlated, all plausibly matter</td>
+          <td><span class="badge ridge">Ridge</span></td>
+          <td>$\mathcal{N}(0,\tau^2)$</td><td>$\lambda\lVert w\rVert_2^2$</td>
+          <td>Stability: correlated columns split the weight rather than competing for it.</td>
+        </tr>
+        <tr>
+          <td>$p \gg n$; you need 20 features out of 500 for a compliance review</td>
+          <td><span class="badge lasso">Lasso</span></td>
+          <td>$\text{Laplace}(0,b)$</td><td>$\lambda\lVert w\rVert_1$</td>
+          <td>Exact zeros, giving a model that fits on one page.</td>
+        </tr>
+        <tr>
+          <td>Correlated <em>groups</em>, and you still need sparsity</td>
+          <td><span class="badge enet">Elastic Net</span></td>
+          <td>Gaussian × Laplace</td><td>$\lambda_1\lVert w\rVert_1+\lambda_2\lVert w\rVert_2^2$</td>
+          <td>Drops irrelevant groups, keeps relevant ones intact.</td>
+        </tr>
+        <tr>
+          <td>You must quote an uncertainty, not just a number</td>
+          <td><span class="badge ok">Full posterior</span></td>
+          <td>$\mathcal{N}(0,\tau^2)$</td><td>—</td>
+          <td>"₹50 ± ₹10" rather than "₹50".</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ what you'll build ============ -->
+  <h2 id="build">What you will hand in</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3 style="margin-top:0">A working surge engine</h3>
+      <p class="small">By week six: a model that takes <code>(hour, rain, traffic, drivers,
+      requests)</code> for a 500&nbsp;m grid cell and returns an additive surge in rupees, with a
+      price cap, a no-surge rule and an uncertainty band.</p>
+      <p class="small muted">Five graded tasks plus a Bayesian bonus. Full brief on the
+      <a href="assignments.html">assignments page</a>.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Four estimators you wrote yourself</h3>
+      <p class="small">OLS by normal equations, Ridge in closed form, Lasso by coordinate
+      descent, Elastic Net by extending it. <code>scikit-learn</code> is for checking answers,
+      not producing them.</p>
+      <p class="small muted">Starter notebooks and full solutions on the
+      <a href="notebooks.html">notebooks page</a>.</p>
+    </div>
+  </div>
+
+  <div class="callout tip" style="margin-top:2em">
+    <span class="ct">How to use this site</span>
+    <p><a href="theory.html">Theory</a> has the derivations. <a href="algorithms.html">Algorithms</a>
+    runs them one step at a time, drawing each matrix entry, soft-threshold and coordinate update
+    as it happens; read a derivation, then watch it execute. <a href="lab.html">Lab</a> applies the
+    estimators to the full dataset. <a href="dataset.html">Data</a> holds the correlation matrix
+    that explains most of the results.</p>
+  </div>
+
+</main>
+
+<script defer src="assets/js/data.js"></script>
+<script defer src="assets/js/mlcore.js"></script>
+<script defer src="assets/js/plot.js"></script>
+<script defer src="assets/js/prep.js"></script>
+<script defer src="assets/js/home.js"></script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Applications — Regularized Regression</title>
+<meta name="description" content="Where MLE, Ridge, Lasso, Elastic Net and MAP estimation actually ship in commercial systems.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Seminar · Week 6</div>
+    <h1>Where this actually ships</h1>
+    <p class="lede">Regularized regression is not a teaching toy replaced by deep learning in
+    production. It runs wherever a model must be stable, auditable, cheap to serve or defensible to
+    a regulator, which covers a lot of production machine learning.</p>
+  </div>
+</section>
+
+<main class="wrap">
+<div class="split">
+<article>
+
+<div class="callout note">
+  <span class="ct">How to read this page</span>
+  <p>Companies publish little about their live model internals, and much of what circulates online
+  is invention. Every claim below is tagged:
+  <span class="badge ok">DOCUMENTED</span> means a named paper or engineering publication states it;
+  <span class="badge">REPORTED</span> means practitioners describe it publicly but the specific
+  system is not published;
+  <span class="badge warn">ILLUSTRATIVE</span> means this is how the problem is normally solved and
+  would plausibly be solved here — a teaching reconstruction, not a claim about a particular
+  company's code. Do not cite the illustrative rows as fact.</p>
+</div>
+
+<!-- ============ MLE ============ -->
+<h2 id="mle">Maximum likelihood — the baseline that never left</h2>
+
+<p>Plain likelihood maximisation remains the workhorse wherever $n$ is large and the feature set
+is curated. With a hundred million rows and forty features, a prior has little to do.</p>
+
+<div class="grid g2">
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span></div>
+    <h4 style="margin-top:0">A/B testing, everywhere</h4>
+    <p class="small">A conversion rate is the MLE of a Bernoulli parameter, $\hat p = k/n$. Every
+    experimentation platform computes maximum likelihood estimates and their standard errors; the
+    $\sqrt{\hat p(1-\hat p)/n}$ in a significance calculation is an MLE's asymptotic variance.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span></div>
+    <h4 style="margin-top:0">Click-through-rate prediction at Google</h4>
+    <p class="small">McMahan et al., <em>Ad Click Prediction: a View from the Trenches</em>
+    (KDD 2013), describes logistic regression — likelihood maximisation for Bernoulli outcomes —
+    served at ad-serving scale, trained with FTRL-Proximal. Note the addition of <strong>an $\ell_1$ penalty for sparsity</strong>, because memory per
+    model is a hard serving constraint. That one paper covers Modules 2, 3 and 5.</p>
+  </div>
+</div>
+
+<p class="small muted">MLE fails where this course begins: correlated features, $p$ approaching
+$n$, or a new market with little data. There, fitting the available data as tightly as possible is
+the wrong instruction.</p>
+
+<!-- ============ RIDGE ============ -->
+<h2 id="ridge">Ridge — when everything matters a little</h2>
+
+<div class="grid g2">
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span><span class="badge ridge">Ridge</span></div>
+    <h4 style="margin-top:0">Recommender systems</h4>
+    <p class="small">The matrix-factorization models that won the Netflix Prize minimise
+    $\sum (r_{ui} - q_i^\top p_u)^2 + \lambda(\lVert q_i\rVert^2 + \lVert p_u\rVert^2)$ —
+    least squares with an $\ell_2$ penalty on every latent factor, i.e. a Gaussian prior on user
+    and item embeddings. Koren, Bell &amp; Volinsky's 2009 <em>IEEE Computer</em> article states the objective
+    explicitly. Without the penalty the model memorises users who rated 4,000 films and learns
+    nothing about those who rated six.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge">REPORTED</span><span class="badge ridge">Ridge</span></div>
+    <h4 style="margin-top:0">Risk factor models in finance</h4>
+    <p class="small">Estimating a portfolio's exposure to hundreds of highly correlated macro
+    factors is the textbook ill-conditioned problem, and shrinkage estimators — ridge and
+    Ledoit–Wolf covariance shrinkage — are standard in the quantitative-finance literature for
+    exactly this reason. Unregularised factor loadings swing between quarterly refits, which is unusable for a risk
+    report someone has to sign.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span><span class="badge ridge">Ridge</span></div>
+    <h4 style="margin-top:0">Adaptive filters: echo and noise cancellation</h4>
+    <p class="small">Regularized least squares is the core of adaptive filtering. Microphone inputs
+    are correlated across taps, so the autocorrelation matrix is near-singular and the unregularised
+    solution is unstable, audibly so. Adding $\delta I$ before inversion is standard practice, and is
+    the ridge estimator.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge warn">ILLUSTRATIVE</span><span class="badge ridge">Ridge</span></div>
+    <h4 style="margin-top:0">Travel-time estimation</h4>
+    <p class="small">Adjacent road segments are near-duplicate features. Attributing a corridor's
+    whole delay to one segment gives poor diagnostics and a different story after the next refit.
+    Splitting it across the group is more stable, which is the ridge equal-split property from
+    <a href="theory.html#ridge-group">Theory §4.2</a>. This is the shape of the problem, not a claim
+    about a specific product.</p>
+  </div>
+</div>
+
+<!-- ============ LASSO ============ -->
+<h2 id="lasso">Lasso — when you must name the features</h2>
+
+<div class="grid g2">
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span><span class="badge lasso">Lasso</span></div>
+    <h4 style="margin-top:0">Genomics and high-dimensional biology</h4>
+    <p class="small">Twenty thousand genes, two hundred patients: the $p \gg n$ regime Lasso was
+    built for, and the running example in Tibshirani's 1996 paper. The output that matters is the
+    short list of genes with non-zero coefficients, which becomes the next experiment. Note the
+    caveat from <a href="theory.html#lasso-caveats">Theory §5.3</a>: Lasso selects at most $n$
+    variables, and among correlated genes its choice is unstable.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span><span class="badge lasso">Lasso</span></div>
+    <h4 style="margin-top:0">Compressed sensing and MRI</h4>
+    <p class="small">Reconstructing an image from fewer measurements than pixels is
+    underdetermined: infinitely many images fit. An $\ell_1$ penalty on a sparse representation picks
+    the sparsest consistent one, and works well enough that compressed-sensing MRI is cleared for
+    clinical use. The same estimator as the surge model, in a different field.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge">REPORTED</span><span class="badge lasso">Lasso</span></div>
+    <h4 style="margin-top:0">Credit scoring under regulatory review</h4>
+    <p class="small">Lending regulators in many jurisdictions require specific reasons for a
+    decline. A model with 500 bureau fields and dense weights makes that hard; 20 non-zero
+    coefficients makes it routine. The constraint driving the choice is legal, not statistical.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span><span class="badge lasso">Lasso</span></div>
+    <h4 style="margin-top:0">Serving-cost sparsity in ad systems</h4>
+    <p class="small">In the KDD 2013 paper, $\ell_1$ regularization is less about generalisation
+    than about memory: a coefficient that is exactly zero need not be stored or fetched. Sparsity is
+    an engineering property as much as a statistical one.</p>
+  </div>
+</div>
+
+<!-- ============ ELASTIC NET ============ -->
+<h2 id="enet">Elastic Net — sparse, but not brittle</h2>
+
+<div class="card" style="border-left:3px solid var(--violet)">
+  <div class="pill-row"><span class="badge ok">DOCUMENTED</span><span class="badge enet">Elastic Net</span></div>
+  <h4 style="margin-top:0">The example the method was invented for</h4>
+  <p class="small">Zou &amp; Hastie's 2005 paper introduces the Elastic Net with gene-expression
+  data. Genes operate in correlated pathways. Lasso keeps roughly one gene per pathway, chosen
+  arbitrarily and unstable across resamples, which is misleading when the pathway is the finding.
+  Ridge keeps all twenty thousand, which is no finding at all. Elastic Net keeps the pathway and
+  drops the rest. The grouping bound in <a href="theory.html#grouping">Theory §6.1</a> is from this
+  paper.</p>
+</div>
+
+<div class="grid g2" style="margin-top:18px">
+  <div class="card">
+    <div class="pill-row"><span class="badge warn">ILLUSTRATIVE</span><span class="badge enet">Elastic Net</span></div>
+    <h4 style="margin-top:0">Ad and content ranking with sparse correlated features</h4>
+    <p class="small">Interest features arrive in clusters: "cricket", "IPL" and "Virat Kohli" are
+    one group, not three independent signals. Pure Lasso keeps one at random, and the survivor
+    changes between refits, which makes the model hard to explain to the team that owns it. Elastic
+    Net is the standard answer when a correlated group must survive together.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge warn">ILLUSTRATIVE</span><span class="badge enet">Elastic Net</span></div>
+    <h4 style="margin-top:0">Multi-sensor fusion on drones and robots</h4>
+    <p class="small">IMU, barometer, vision and lidar produce correlated blocks of features. You
+    want to drop a whole failing modality rather than one channel from each, and to keep the
+    redundancy inside a working one, since that redundancy is the safety margin. Pure Lasso would
+    strip exactly that. The grouping effect, stated as an engineering requirement.</p>
+  </div>
+</div>
+
+<!-- ============ MAP / BAYES ============ -->
+<h2 id="bayes">MAP and full Bayes — when you must quote uncertainty</h2>
+
+<div class="grid g2">
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span></div>
+    <h4 style="margin-top:0">The Kalman filter is recursive MAP</h4>
+    <p class="small">Tracking a pedestrian from noisy sensors is
+    $p(\text{state} \mid \text{sensor}) \propto p(\text{sensor} \mid \text{state})\,p(\text{state})$,
+    with the motion model as prior and the sensor model as likelihood. Under linear-Gaussian
+    assumptions the posterior is Gaussian and its mode is the Kalman estimate. Autonomous vehicles
+    and drone flight controllers run the MAP equation from
+    <a href="theory.html#map">Theory §3</a> at 100 Hz.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span></div>
+    <h4 style="margin-top:0">Weather forecasting: data assimilation</h4>
+    <p class="small">Operational variational assimilation (3D-Var / 4D-Var) minimises
+    $\lVert x - x_b\rVert^2_{B^{-1}} + \lVert y - H(x)\rVert^2_{R^{-1}}$ — the first term is the
+    prior from the physics model's background state, the second the observation likelihood. That objective is MAP with a Gaussian prior, i.e. Ridge
+    with a non-isotropic covariance. National weather services run it twice a day.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">DOCUMENTED</span></div>
+    <h4 style="margin-top:0">Image denoising priors</h4>
+    <p class="small">Classical denoising minimises data fidelity plus a prior term: Tikhonov
+    ($\ell_2$, smooth) or total variation ($\ell_1$ on the gradient, edge-preserving). TV keeps edges
+    and Tikhonov blurs them for the corner-versus-circle reason in
+    <a href="theory.html#geometry">Theory §5.2</a>. A photo pipeline is a regularizer choice with a
+    visible output.</p>
+  </div>
+  <div class="card">
+    <div class="pill-row"><span class="badge">REPORTED</span></div>
+    <h4 style="margin-top:0">Quoting a number with an error bar</h4>
+    <p class="small">Any product showing a range rather than a point (a delivery window, a price
+    estimate, a forecast band) needs predictive variance, not just a fitted value: the posterior
+    predictive of <a href="theory.html#bayes">Theory §7</a>, and the bonus task.</p>
+  </div>
+</div>
+
+<!-- ============ SUMMARY ============ -->
+<h2 id="pattern">The pattern underneath</h2>
+
+<p>Notice what decides the estimator in each case. It is almost never which has the lowest test
+error, since those differences are often within noise. It is a constraint from outside the
+model.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>The real constraint</th><th>Forces you toward</th><th>Seen above in</th></tr></thead>
+  <tbody>
+    <tr><td>"A regulator must be able to read this"</td><td><span class="badge lasso">Lasso</span></td>
+        <td>Credit scoring</td></tr>
+    <tr><td>"It must fit in memory at serving time"</td><td><span class="badge lasso">Lasso</span></td>
+        <td>Ad click prediction</td></tr>
+    <tr><td>"It must not change its story after a refit"</td><td><span class="badge ridge">Ridge</span></td>
+        <td>Risk models, ETA</td></tr>
+    <tr><td>"The correlated group is the finding"</td><td><span class="badge enet">Elastic Net</span></td>
+        <td>Genomics pathways</td></tr>
+    <tr><td>"We must show a range, not a number"</td><td><span class="badge ok">Full posterior</span></td>
+        <td>Assimilation, tracking</td></tr>
+    <tr><td>"We have a hundred million clean rows"</td><td><span class="badge mle">MLE</span></td>
+        <td>A/B testing</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout tip">
+  <span class="ct">Seminar question</span>
+  <p>Pick a product you use daily and identify one number it shows that must have been estimated.
+  Argue which of the five estimators you would use to produce it, naming the constraint rather than
+  the accuracy that drives your choice. One paragraph, for Week 6.</p>
+</div>
+
+<p style="margin-top:2em">The extended treatment of one system — demand forecasting, supply
+forecasting, the additive fare redesign and the price cap — is in the
+<a href="uber.html">surge pricing case study</a>.</p>
+
+</article>
+<aside class="toc" data-toc></aside>
+</div>
+</main>
+</body>
+</html>

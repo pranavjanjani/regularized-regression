@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resources — Regularized Regression</title>
+<meta name="description" content="Reading list, glossary, formula sheet and common pitfalls.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Reference</div>
+    <h1>Resources</h1>
+    <p class="lede">A reading list, a formula sheet, a glossary of the terms this course uses
+    precisely, and the mistakes that cost marks.</p>
+  </div>
+</section>
+
+<main class="wrap">
+<div class="split">
+<article>
+
+<h2 id="reading">Reading</h2>
+
+<h3 id="primary">Primary sources — read these</h3>
+<div class="timeline">
+  <div class="item">
+    <h4 style="margin:0 0 3px">Hoerl &amp; Kennard (1970), <em>Ridge Regression: Biased Estimation
+    for Nonorthogonal Problems</em></h4>
+    <p class="small muted">Technometrics 12(1). The original, framing ridge as a response to
+    ill-conditioning rather than as a Bayesian object. Worth reading because the Bayesian
+    interpretation came later.</p>
+  </div>
+  <div class="item">
+    <h4 style="margin:0 0 3px">Tibshirani (1996), <em>Regression Shrinkage and Selection via the
+    Lasso</em></h4>
+    <p class="small muted">JRSS-B 58(1). Introduces the $\ell_1$ penalty and, in §5, the Bayesian
+    Laplace-prior reading we use throughout. Short and unusually readable.</p>
+  </div>
+  <div class="item">
+    <h4 style="margin:0 0 3px">Zou &amp; Hastie (2005), <em>Regularization and Variable Selection
+    via the Elastic Net</em></h4>
+    <p class="small muted">JRSS-B 67(2). The grouping-effect theorem from
+    <a href="theory.html#grouping">Theory §6.1</a>, the double-shrinkage correction, and the gene
+    expression example. Task 4 reproduces this paper in miniature.</p>
+  </div>
+  <div class="item">
+    <h4 style="margin:0 0 3px">Friedman, Hastie &amp; Tibshirani (2010), <em>Regularization Paths
+    for Generalized Linear Models via Coordinate Descent</em></h4>
+    <p class="small muted">J. Statistical Software 33(1). The algorithm implemented in Task 3, by
+    the people who made it the default. Read §2 before writing your solver.</p>
+  </div>
+  <div class="item">
+    <h4 style="margin:0 0 3px">McMahan et al. (2013), <em>Ad Click Prediction: a View from the
+    Trenches</em></h4>
+    <p class="small muted">KDD 2013. A candid account of running a penalized linear model at
+    production scale, including the parts about memory rather than accuracy. See
+    <a href="applications.html#mle">Applications §1</a>.</p>
+  </div>
+</div>
+
+<h3 id="textbooks">Textbooks</h3>
+<ul>
+  <li><strong>Hastie, Tibshirani &amp; Friedman, <em>The Elements of Statistical Learning</em></strong>
+  — Chapter 3 is the canonical treatment. Figures 3.8 and 3.11 are the coefficient paths you
+  reproduce; Figure 3.11 is the diamond-and-ellipse picture from
+  <a href="theory.html#geometry">Theory §5.2</a>. Freely available from the authors.</li>
+  <li><strong>Bishop, <em>Pattern Recognition and Machine Learning</em></strong> — §3.1–3.5 for the
+  Bayesian treatment. §3.3 has the sequential-posterior figure that
+  <a href="algorithms.html#bayes">Walkthrough 5</a> animates.</li>
+  <li><strong>Murphy, <em>Probabilistic Machine Learning: An Introduction</em></strong> —
+  Chapter 11. The clearest modern statement of the MAP-equals-penalty correspondence.</li>
+  <li><strong>Boyd &amp; Vandenberghe, <em>Convex Optimization</em></strong> — §3 and §4 if you want
+  the subdifferential argument in <a href="theory.html#soft">Theory §5.1</a> done properly.</li>
+</ul>
+
+<h2 id="formulas">Formula sheet</h2>
+<p>Everything you need for the assignment, on one screen.</p>
+
+<div class="mathbox">
+<p><strong>Likelihood and MAP</strong></p>
+$$\hat w_{\text{MLE}} = \argmax_w \log p(y\mid X,w), \qquad
+  \hat w_{\text{MAP}} = \argmax_w \big[\log p(y\mid X,w) + \log p(w)\big]$$
+$$\text{penalty} = -2\sigma^2 \log p(w)$$
+</div>
+
+<div class="mathbox">
+<p><strong>The four estimators</strong></p>
+$$\hat w_{\text{OLS}} = (X^\top X)^{-1}X^\top y$$
+$$\hat w_{\text{ridge}} = (X^\top X + \lambda I)^{-1}X^\top y, \qquad \lambda = \sigma^2/\tau^2$$
+$$\hat w_{\text{lasso}} : \quad w_j \leftarrow \frac{S(\rho_j,\ \lambda/2)}{\lVert x_j\rVert^2},
+  \qquad S(\rho,\gamma) = \operatorname{sign}(\rho)\max(|\rho|-\gamma,\,0)$$
+$$\hat w_{\text{EN}} : \quad w_j \leftarrow \frac{S(\rho_j,\ \lambda_1)}{\lVert x_j\rVert^2 + \lambda_2}$$
+</div>
+
+<div class="mathbox">
+<p><strong>Partial residual and $\rho_j$</strong></p>
+$$r^{(j)} = y - \sum_{k \neq j} x_k w_k, \qquad \rho_j = x_j^\top r^{(j)}$$
+<p class="small muted" style="margin:6px 0 0">With standardized columns and the $1/n$ convention,
+$\rho_j = b_j - \sum_{k\neq j} A_{jk} w_k$ where $A = X^\top X/n$ and $b = X^\top y/n$.</p>
+</div>
+
+<div class="mathbox">
+<p><strong>Gaussian posterior</strong></p>
+$$\Sigma = \Big(\tfrac{X^\top X}{\sigma^2} + \tfrac{I}{\tau^2}\Big)^{-1}, \qquad
+  \mu = \tfrac{1}{\sigma^2}\Sigma X^\top y, \qquad
+  \hat w_j \pm 1.96\sqrt{\Sigma_{jj}}$$
+$$\operatorname{Var}(y_\star) = x_\star^\top \Sigma x_\star + \sigma^2$$
+</div>
+
+<div class="mathbox">
+<p><strong>Diagnostics</strong></p>
+$$\operatorname{Var}(\hat w_{\text{OLS}}) = \sigma^2(X^\top X)^{-1}, \qquad
+  \text{VIF}_j = \frac{1}{1-R_j^2}, \qquad
+  \mathrm{df}(\lambda) = \sum_j \frac{d_j^2}{d_j^2+\lambda}$$
+<p class="small muted" style="margin:6px 0 0">For two standardized features,
+$\det(X^\top X/n) = 1-r^2$ and $\text{VIF} = 1/(1-r^2)$ for both.</p>
+</div>
+
+<h2 id="glossary">Glossary</h2>
+<p>Terms this course uses in a specific sense. Where students routinely conflate two ideas, both
+are listed together.</p>
+
+<details class="acc" open>
+  <summary>Shrinkage vs. selection</summary>
+  <div class="acc-body">
+    <p class="small"><strong>Shrinkage</strong> pulls coefficients toward zero without reaching it,
+    so the model still uses every feature. <strong>Selection</strong> sets coefficients to exactly
+    zero, removing features. Ridge only shrinks; Lasso does both. The difference is not one of
+    degree: a coefficient of $10^{-9}$ still has to be computed, stored and explained.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Bias, variance, and why regularization trades one for the other</summary>
+  <div class="acc-body">
+    <p class="small">OLS is unbiased: averaged over many datasets it hits the truth. It can still be
+    useless, because its variance — how much it moves between datasets — can be large when
+    $X^\top X$ is ill-conditioned. Penalizing introduces bias in exchange for a reduction in
+    variance. Expected squared error is bias² + variance + irreducible noise, and only the first two
+    are yours to trade.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Collinearity, condition number, VIF</summary>
+  <div class="acc-body">
+    <p class="small">Three views of one problem. <strong>Collinearity</strong>: some column is nearly
+    a linear combination of others. <strong>Condition number</strong> $d_{\max}/d_{\min}$ of $X$:
+    above ~30 you should be uneasy. <strong>VIF</strong>: how much feature $j$'s coefficient
+    variance is inflated by the others; above 5–10 is the usual alarm. All three are measuring the
+    smallest singular value from different angles.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Cross-validation vs. a held-out test set</summary>
+  <div class="acc-body">
+    <p class="small">Cross-validation is for choosing: hyperparameters, feature sets, model class.
+    The test set is for reporting, once. The moment you use it to pick anything it stops being a test
+    set and its error becomes optimistic. Here: CV on trips 1–150, report on 151–200.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Censoring</summary>
+  <div class="acc-body">
+    <p class="small">An observation is censored when you know the value is at least (or at most)
+    something, but not what it actually is. The 21 trips at the ₹150 cap are censored: the
+    willingness-to-price was higher and was never recorded. Ordinary least squares treats ₹150 as
+    the truth, which biases coefficients on the drivers of extreme surge toward zero. Tobit
+    regression is the standard fix; noticing the problem is what this course asks of you.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Standardization, and why penalties demand it</summary>
+  <div class="acc-body">
+    <p class="small">$\lambda\lVert w\rVert^2$ treats all coefficients as comparable, but a
+    coefficient's size depends on its feature's units. Measure traffic in m/s rather than km/h and
+    its coefficient changes by 3.6×, its penalty by 13×, and the fitted model with them, though
+    nothing about the world changed. Ordinary least squares is scale-equivariant; every penalized
+    method is not.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>The one-standard-error rule</summary>
+  <div class="acc-body">
+    <p class="small">CV curves are estimates with their own noise. Rather than the exact minimum,
+    take the simplest model (largest λ) whose CV error is within one standard error of it. You give
+    up a negligible amount of estimated accuracy for a simpler model, and stop resolving differences
+    the CV cannot detect.</p>
+  </div>
+</details>
+
+<h2 id="pitfalls">Pitfalls, in the order students hit them</h2>
+<ol>
+  <li><strong>Forgetting to standardize</strong> before a penalized fit, so one feature is penalized
+  thousands of times more than another purely because of its units.</li>
+  <li><strong>Standardizing before splitting</strong>, leaking the test set's mean and variance into
+  training. Fit the scaler on the training rows; apply it to the test rows.</li>
+  <li><strong>Selecting λ on the test set</strong>, then reporting the test error as if it were
+  honest.</li>
+  <li><strong>Mismatched λ conventions</strong> between your solver and scikit-learn — the $1/n$ and
+  the factor of 2 in $\lambda/2$ are the usual culprits. Find the factor; do not tune until it
+  matches.</li>
+  <li><strong>Reading a Lasso selection as causal.</strong> Among correlated features the choice is
+  close to arbitrary and changes under resampling. Bootstrap it first.</li>
+  <li><strong>Quoting α to four significant figures</strong> off a CV curve with a flat bottom.</li>
+  <li><strong>Comparing Ridge and Lasso at the same α</strong> and concluding one shrinks harder.
+  They parameterise differently. Compare at equal ‖w‖₁ or equal degrees of freedom, as the
+  <a href="index.html#teaser">home page slider</a> does.</li>
+  <li><strong>Reporting that a model "explains" something</strong> because a coefficient is large,
+  without checking whether its credible interval covers zero.</li>
+</ol>
+
+<h2 id="course">Course materials</h2>
+<div class="dl-row">
+  <a class="btn primary" href="assignments/Regression_Assignment.pdf">Assignment (PDF)</a>
+  <a class="btn" href="assignments/Regression_Assignment.docx">Assignment (Word)</a>
+  <a class="btn" href="assignments/Regression_Assignment_Solutions.pdf">Solutions (PDF)</a>
+  <a class="btn" href="assignments/Regression_Assignment_Solutions.docx">Solutions (Word)</a>
+  <a class="btn" href="notebooks.html">Notebooks</a>
+  <a class="btn" href="data/uber_surge_mumbai.csv" download>Dataset</a>
+</div>
+
+<div class="callout note">
+  <span class="ct">A note on the case study</span>
+  <p>The surge-pricing system described on this site is a <strong>teaching reconstruction</strong>
+  built on synthetic data, not a description of any company's production system. The structure —
+  spatial grids, short-horizon demand and supply forecasts, itemised additive pricing, price caps —
+  reflects publicly described industry practice. The features, coefficients and dataset are ours.
+  See the note at the top of the <a href="uber.html">case study</a> and the evidence tags on the
+  <a href="applications.html">applications page</a>.</p>
+</div>
+
+</article>
+<aside class="toc" data-toc></aside>
+</div>
+</main>
+</body>
+</html>
