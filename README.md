@@ -48,6 +48,59 @@ Then visit <http://localhost:8765>. That server disables caching, which matters 
 editing — a plain `http.server` will happily hand the browser stale CSS and JS. Deploy by
 copying `site/` to any static host.
 
+## Publishing it
+
+The site is static and every path in it is relative, so it works at a domain root or in
+a subdirectory (`user.github.io/repo/`) with no configuration. Both options below are
+already set up in this repo.
+
+### GitHub Pages
+
+1. Create an empty repository on GitHub (no README, no .gitignore).
+2. Push this project to it:
+
+```bash
+git remote add origin https://github.com/<you>/<repo>.git
+git push -u origin main
+```
+
+3. In the repository, open **Settings → Pages** and set **Source** to **GitHub Actions**.
+
+That is the whole setup. `.github/workflows/deploy-pages.yml` uploads `site/` on every
+push to `main`, and the first run publishes to
+`https://<you>.github.io/<repo>/`. Watch it under the **Actions** tab; it takes about a
+minute. There is no build step — the workflow only copies `site/`.
+
+### Vercel
+
+1. Push to GitHub as above (Vercel deploys from a repository).
+2. At [vercel.com/new](https://vercel.com/new), import the repository.
+3. When asked for a framework, choose **Other**, and leave the build command empty.
+   `vercel.json` already sets the output directory to `site`.
+
+Vercel then gives you a `*.vercel.app` URL and redeploys on every push. To deploy from
+the terminal instead, `npm i -g vercel && vercel --prod` from the project root.
+
+### After editing the course
+
+`site/` is a generated folder: the datasets, notebooks and hand-outs inside it are copies.
+Regenerate and commit before pushing, or the published site will keep serving the old
+files:
+
+```bash
+./scripts/sync_site.sh && git add -A && git commit -m "Update course materials" && git push
+```
+
+### Notes
+
+- **Both hosts serve `404.html` automatically** for unknown URLs.
+- **`site/.nojekyll`** stops GitHub Pages from running Jekyll over the folder, which would
+  otherwise skip files beginning with `_` or `.`.
+- **KaTeX loads from a CDN**, so the published maths needs network access. Everything else
+  — the datasets, all the estimators, every chart — runs locally in the browser.
+- **The whole site is 2.4 MB**, most of it the pre-executed solution notebooks. Well
+  inside both hosts' free limits.
+
 ## Regenerating everything
 
 ```bash
