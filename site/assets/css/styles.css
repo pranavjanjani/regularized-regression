@@ -64,9 +64,11 @@ hr{border:0;border-top:1px solid var(--line);margin:2.4em 0}
 .wrap-narrow{max-width:860px;margin:0 auto;padding:0 22px}
 main{padding:34px 0 80px;min-height:60vh}
 .grid{display:grid;gap:18px}
-.g2{grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
-.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-.g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+/* min() lets a track shrink below its stated minimum on very narrow screens,
+   instead of forcing the grid wider than the viewport. */
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}
 .split{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:34px;align-items:start}
 /* Grid items default to min-width:auto, so one wide child (a long KaTeX display,
    say) stretches the whole column and scrolls the page sideways on a phone.
@@ -152,7 +154,15 @@ a.card:hover{text-decoration:none;transform:translateY(-2px);box-shadow:var(--sh
 table{border-collapse:collapse;width:100%;font-size:.88rem}
 th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line)}
 th{background:var(--bg-3);font-weight:620;font-size:.78rem;text-transform:uppercase;
-  letter-spacing:.05em;color:var(--fg-2);position:sticky;top:0;white-space:nowrap}
+  letter-spacing:.05em;color:var(--fg-2);white-space:nowrap}
+/* Sticky headers belong only to the one table tall enough to scroll vertically.
+   Applied globally, a sticky th inside a horizontally scrolling wrapper adds its
+   offset to the page's scroll width and gives the whole document a phantom
+   horizontal scrollbar on narrow screens. */
+.table-scroll th{position:sticky;top:0;z-index:1}
+/* Keep the sticky header's paint and scroll area inside this box, so it cannot
+   add to the document's own scrollable width. */
+.table-scroll{contain:paint}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--bg-inset)}
 td.num,th.num{text-align:right;font-family:var(--mono);font-size:.83rem;font-variant-numeric:tabular-nums}
