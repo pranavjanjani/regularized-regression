@@ -11,4 +11,7 @@ cp -f assignments/*.pdf         site/assignments/     2>/dev/null || true
 cp -f notebooks/*.ipynb         site/notebooks/       2>/dev/null || true
 cp -f notebooks/*.zip           site/notebooks/       2>/dev/null || true
 cp -f scripts/make_data.py      site/scripts/         2>/dev/null || true
+# Key each asset URL to its contents so a deploy cannot serve new HTML with
+# stale CSS or JS from the browser cache.
+python3 "$ROOT/scripts/stamp_assets.py"
 echo "synced -> site/{data,assignments,notebooks,scripts}"
