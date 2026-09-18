@@ -16,7 +16,8 @@ site/                     the class website — static, no server needed
   index.html              home, with a live Ridge-vs-Lasso teaser
   syllabus.html           6-week schedule, outcomes, assessment weights
   theory.html             derivations (OLS/MLE, MAP, Ridge, Lasso, EN, full posterior)
-  algorithms.html         ▶ step-by-step animated walkthroughs of every estimator
+  algorithms.html         ▶ six step-by-step walkthroughs: least squares, the MAP
+                          construction, ridge, lasso, elastic net, Bayesian updating
   applications.html       where each method ships, with evidence tags
   uber.html               the surge-pricing case study + live fare calculator
   lab.html                6-panel interactive lab on the real dataset
@@ -111,6 +112,11 @@ number in the documents, the notebooks and the website moves together.
   `theory.html` derives; `algorithms.html` *executes* the same derivation one line of
   arithmetic at a time, with the loss surface and the optimizer's path drawn live.
   Reading a derivation then stepping through it is the intended loop.
+- **Walkthrough 2 builds the MAP objective rather than assuming it**: likelihood × prior,
+  take logs, negate, and λ = σ²/τ² falls out. Its τ slider morphs the estimate
+  continuously from the MLE to zero, and the prior selector swaps ℓ₂ for ℓ₁. It defaults
+  to τ = 0.03 because at the assignment's τ = 1 a prior is too vague to move the estimate
+  against 60 trips — which is itself the finding Task 2 asks for.
 - **The dataset is built to make the lessons true.** `is_weekend` has a true coefficient of
   exactly zero, so Lasso should kill it first. `is_rain` and `is_bad_weather` are *identical
   columns* over the first ten trips, so OLS genuinely does not exist there. The `new_city`

@@ -146,7 +146,8 @@ coefficient thrashing as $n$ grows. Use them to confirm your hand arithmetic, no
 <h2 id="t2">Task 2 · Ridge as MAP <span class="badge ridge">20 marks · 45 min</span></h2>
 
 <p><strong>Goal:</strong> implement the Gaussian-prior MAP estimator and read a coefficient
-path.</p>
+path. <a href="algorithms.html#map">Walkthrough 2</a> derives the objective you are
+implementing, and <a href="algorithms.html#ridge">Walkthrough 3</a> solves it.</p>
 <ol>
   <li>Implement $\hat w = (X^\top X + \alpha I)^{-1} X^\top y$ with <code>np.linalg.solve</code>
   (not <code>inv</code> — say why in one line).</li>

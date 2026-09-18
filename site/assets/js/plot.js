@@ -518,8 +518,11 @@
         fill: pt.color || 'var(--accent)', stroke: 'var(--bg-2)', 'stroke-width': 2}));
       if (pt.label) {
         const right = px < ox + side * 0.72;
+        // dy lets a caller stagger labels that would otherwise sit on top of each
+        // other when several points cluster in the middle of the plane.
+        const ly = Math.min(Math.max(py - 9 + (pt.dy || 0), oy + 12), oy + side - 6);
         const t = el('text', {
-          x: px + (right ? 10 : -10), y: Math.max(py - 9, oy + 12),
+          x: px + (right ? 10 : -10), y: ly,
           'text-anchor': right ? 'start' : 'end',
           fill: pt.color || 'var(--accent)', 'font-size': 10.5, 'font-weight': 650,
           'font-family': 'var(--mono)'});

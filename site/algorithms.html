@@ -29,10 +29,11 @@
 <div class="chips no-print" style="margin-bottom:26px">
   <a class="chip" href="#setup">setup</a>
   <a class="chip" href="#ols">1 · least squares</a>
-  <a class="chip" href="#ridge">2 · ridge</a>
-  <a class="chip" href="#lasso">3 · lasso &amp; coordinate descent</a>
-  <a class="chip" href="#enet">4 · elastic net</a>
-  <a class="chip" href="#bayes">5 · bayesian updating</a>
+  <a class="chip" href="#map">2 · MAP</a>
+  <a class="chip" href="#ridge">3 · ridge</a>
+  <a class="chip" href="#lasso">4 · lasso &amp; coordinate descent</a>
+  <a class="chip" href="#enet">5 · elastic net</a>
+  <a class="chip" href="#bayes">6 · bayesian updating</a>
 </div>
 
 <!-- ================= SHARED SETUP ================= -->
@@ -88,8 +89,48 @@ Here they are in order, with the loss surface drawn as soon as it is determined.
   <div class="narration"></div>
 </div>
 
-<!-- ================= 2 · RIDGE ================= -->
-<h2 id="ridge">2 · Ridge: one line changes <span class="badge ridge">MAP · Gaussian prior</span></h2>
+<!-- ================= 2 · MAP ================= -->
+<h2 id="map">2 · MAP: turning a prior into a penalty <span class="badge ok">MLE → MAP</span></h2>
+<p>The other walkthroughs start from a penalized objective and solve it. This one
+<em>builds</em> that objective: take the likelihood, multiply by a prior, take logs, negate, and
+a penalty appears with $\lambda = \sigma^2/\tau^2$ falling out of the algebra rather than being
+asserted. Then dial τ and watch the estimate travel from the MLE to zero.</p>
+
+<div class="card walkthrough" id="wMap">
+  <div class="controls" style="margin-bottom:10px">
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Prior on w</span></label>
+      <div class="seg" id="mapPrior">
+        <button data-p="gauss" class="on">Gaussian → ℓ₂</button>
+        <button data-p="laplace">Laplace → ℓ₁</button>
+      </div>
+    </div>
+    <div class="ctl" style="flex:1 1 250px">
+      <label for="mapTau"><span>Prior width τ &nbsp;<span class="muted">how sure you are of zero</span></span>
+        <span class="val" id="mapTauV">0.030</span></label>
+      <input type="range" id="mapTau" min="-2.6" max="1" step="0.02" value="-1.52">
+    </div>
+    <div class="ctl" style="flex:1 1 200px">
+      <label for="mapSigma"><span>Noise σ (₹)</span><span class="val" id="mapSigmaV">10</span></label>
+      <input type="range" id="mapSigma" min="2" max="40" step="1" value="10">
+    </div>
+  </div>
+  <div class="player"></div>
+  <div class="grid g2" style="gap:26px;margin-top:6px">
+    <div class="math-pane"></div>
+    <div class="viz-pane"></div>
+  </div>
+  <div class="narration"></div>
+  <div class="grid g2" style="gap:26px;margin-top:20px">
+    <div><h4 style="margin:0 0 6px">Data fit against penalty, along the road to the mode</h4>
+      <div class="slice-pane"></div></div>
+    <div><h4 style="margin:0 0 6px">Where τ takes each coefficient</h4>
+      <div class="tau-pane"></div></div>
+  </div>
+</div>
+
+<!-- ================= 3 · RIDGE ================= -->
+<h2 id="ridge">3 · Ridge: one line changes <span class="badge ridge">MAP · Gaussian prior</span></h2>
 <p>The same four steps, with $\alpha I$ added to the Gram matrix. Watch the effect on the
 determinant, the eigenvalues and the solution.</p>
 
@@ -108,8 +149,8 @@ determinant, the eigenvalues and the solution.</p>
   <div class="narration"></div>
 </div>
 
-<!-- ================= 3 · LASSO ================= -->
-<h2 id="lasso">3 · Lasso by coordinate descent <span class="badge lasso">MAP · Laplace prior</span></h2>
+<!-- ================= 4 · LASSO ================= -->
+<h2 id="lasso">4 · Lasso by coordinate descent <span class="badge lasso">MAP · Laplace prior</span></h2>
 <p>There is no closed form, so we descend one coordinate at a time. Each step freezes the other
 coefficients, finds the exact optimum along one axis and soft-thresholds it. The trajectory moves in
 right-angled segments, and coefficients reach exactly zero and stay there.</p>
@@ -145,8 +186,8 @@ right-angled segments, and coefficients reach exactly zero and stay there.</p>
   </div>
 </div>
 
-<!-- ================= 4 · ELASTIC NET ================= -->
-<h2 id="enet">4 · Elastic Net: the same loop, one extra symbol <span class="badge enet">both priors</span></h2>
+<!-- ================= 5 · ELASTIC NET ================= -->
+<h2 id="enet">5 · Elastic Net: the same loop, one extra symbol <span class="badge enet">both priors</span></h2>
 <p>The update becomes $\hat w_j \leftarrow S(\rho_j,\ \alpha\rho)\ /\ (\lVert x_j\rVert^2/n + \alpha(1-\rho))$:
 the numerator is Lasso's threshold, the denominator Ridge's shrinkage. Slide ρ from 1 to 0 to turn
 one into the other.</p>
@@ -178,8 +219,8 @@ one into the other.</p>
   </div>
 </div>
 
-<!-- ================= 5 · BAYES ================= -->
-<h2 id="bayes">5 · Bayesian updating: the prior losing the argument <span class="badge ok">full posterior</span></h2>
+<!-- ================= 6 · BAYES ================= -->
+<h2 id="bayes">6 · Bayesian updating: the prior losing the argument <span class="badge ok">full posterior</span></h2>
 <p>Ridge returns the posterior mode and discards the rest. Here is the whole distribution: start
 from the prior, add the data a few trips at a time, and watch the posterior contract onto the
 least-squares answer. The posterior mean is the ridge solution at $\lambda = \sigma^2/\tau^2$.</p>

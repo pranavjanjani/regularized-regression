@@ -143,6 +143,9 @@ $$ \hat w_{\text{MAP}} = \argmax_w \Big[\log p(y\mid X,w) + \log p(w)\Big]
   <p>$-\log(\text{prior})$ <em>is</em> the penalty. Choose a prior, take its negative log, and you
   have a regularizer. Every method below follows from this equation; only the density on $w$
   changes.</p>
+  <p><a href="algorithms.html#map">Walkthrough 2</a> runs this construction step by step: it starts
+  from the likelihood, multiplies in a prior, negates, and watches $\lambda = \sigma^2/\tau^2$
+  appear. It also lets you dial $\tau$ and see the estimate travel from the MLE to zero.</p>
 </div>
 
 <figure>

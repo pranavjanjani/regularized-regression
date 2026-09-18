@@ -403,7 +403,390 @@
   });
 
   /* ======================================================================
-     2 · RIDGE
+     2 · MAP — building the penalty out of a prior
+
+     The other walkthroughs take a penalized objective as given. This one
+     constructs it: likelihood × prior, take logs, and the penalty appears,
+     with λ = σ²/τ² falling out of the algebra rather than being asserted.
+  ====================================================================== */
+  /* τ defaults to 0.03 rather than 1: with 60 trips a prior of width 1 is so vague
+     that it moves the estimate by less than a rupee, and the walkthrough would open
+     on a contest that is not happening. 0.03 is where the two sides are comparable. */
+  let mapTau = 0.03, mapSigma = 10, mapPrior = 'gauss';
+
+  const mapPlayer = makePlayer($('wMap'), {
+    speed: 1400,
+    steps() {
+      const n = S.n, Z = S.Z, y = S.y;
+      const sigZ = mapSigma / S.ysd;                 // noise on the standardized target
+      const s2 = sigZ * sigZ, t2 = mapTau * mapTau;
+      const bLap = mapTau / Math.SQRT2;              // Laplace scale at equal variance
+      const gauss = mapPrior === 'gauss';
+
+      /* The two halves of the negative log posterior, as written on the page. */
+      const dataTerm = w => n * loss(w) / s2;        // ‖y − Zw‖²/(2σ²)
+      const priorTerm = w => gauss ? l2sq(w) / (2 * t2) : l1(w) / bLap;
+      const J = w => dataTerm(w) + priorTerm(w);
+
+      const lam = s2 / t2;                           // ℓ₂ penalty weight
+      const lamL1 = 2 * s2 / bLap;                   // ℓ₁ penalty weight
+      const wMap = gauss
+        ? ML.ridge(Z, y, lam).w
+        : ML.elasticNet(Z, y, s2 / (n * bLap), 1.0).w;
+      const wOther = gauss
+        ? ML.elasticNet(Z, y, s2 / (n * bLap), 1.0).w
+        : ML.ridge(Z, y, lam).w;
+      const wMle = S.wOls;
+      const ref = wMle || S.wMin;
+
+      const Alik = S.A.map(r => r.map(v => v * n / s2));
+      const Apri = gauss ? [[1 / t2, 0], [0, 1 / t2]] : null;
+      const Apost = gauss
+        ? [[Alik[0][0] + 1 / t2, Alik[0][1]], [Alik[1][0], Alik[1][1] + 1 / t2]]
+        : Alik;
+      const shrink = Math.sqrt(l2sq(wMap) / (l2sq(ref) || 1e-12));
+      const pack = {wMap, wOther, wMle, ref, dataTerm, priorTerm, J, gauss,
+                    Alik, Apri, Apost, lam, lamL1, sigZ, bLap, t2, s2, n};
+
+      const st = [];
+
+      st.push({
+        short: 'Likelihood only', title: 'Start with the likelihood alone',
+        math: `<div class="narration" style="margin:0 0 12px;border-left-color:var(--c-ols)">
+            $$p(y \\mid X, w) \;\\propto\; \\exp\\!\\left(-\\frac{\\lVert y - Xw\\rVert^2}{2\\sigma^2}\\right)$$
+          </div>
+          <div>${kv([
+            ['noise σ', '₹' + F(mapSigma, 0) + '  (= ' + F(sigZ, 3) + ' standardized)'],
+            ['trips n', n],
+            ['−log likelihood at ŵ MLE', wMle ? F(dataTerm(wMle), 1) : 'undefined', 'good'],
+            ['−log likelihood at w = 0', F(dataTerm([0, 0]), 1), 'warn'],
+            ['ŵ MLE', wMle ? `(${F(wMle[0], 3)}, ${F(wMle[1], 3)})` : 'does not exist', wMle ? '' : 'warn']])}</div>`,
+        narration: `<p>With no prior — or, equivalently, a perfectly flat one — maximising the
+          posterior is maximising the likelihood. The mode is the MLE, and the penalty term does
+          not exist yet.</p>
+          <p>Note the two numbers above: the negative log likelihood is
+          <span class="hl">${F(dataTerm([0, 0]), 0)}</span> at the origin and
+          <span class="hl">${wMle ? F(dataTerm(wMle), 0) : '—'}</span> at the MLE. That gap is how
+          hard the data will pull, and it is what any prior has to argue against.</p>`,
+        viz: Object.assign({stage: 0}, pack)
+      });
+
+      st.push({
+        short: 'Add a prior', title: gauss ? 'Choose a prior: Gaussian' : 'Choose a prior: Laplace',
+        math: `<div class="narration" style="margin:0 0 12px;border-left-color:var(--c-ridge)">
+            ${gauss
+              ? `$$p(w) \;\\propto\; \\exp\\!\\left(-\\frac{\\lVert w\\rVert_2^2}{2\\tau^2}\\right)$$`
+              : `$$p(w) \;\\propto\; \\exp\\!\\left(-\\frac{\\lVert w\\rVert_1}{b}\\right)$$`}
+          </div>
+          <div>${kv([
+            ['prior width τ', F(mapTau, 3)],
+            gauss ? ['prior variance τ²', F(t2, 4)]
+                  : ['Laplace scale b = τ/√2', F(bLap, 4)],
+            gauss ? ['−log prior', '‖w‖₂² / 2τ²'] : ['−log prior', '‖w‖₁ / b'],
+            ['−log prior at w = 0', '0.0', 'good'],
+            ['−log prior at ŵ MLE', wMle ? F(priorTerm(wMle), 1) : '—', 'warn']])}</div>`,
+        narration: `<p>The prior is a statement made before seeing data: each coefficient is
+          probably near zero, with spread τ = <span class="hl">${F(mapTau, 3)}</span>.
+          ${gauss
+            ? 'On the plane it is a circle centred on the origin.'
+            : 'Its contours are diamonds rather than circles, and that single fact is what will '
+              + 'eventually produce exact zeros.'}</p>
+          <p>Both priors are shown at the <em>same variance</em>, so the comparison is fair:
+          a Laplace with scale $b$ has variance $2b^2$, hence $b = \\tau/\\sqrt{2}$.</p>
+          <p>The prior costs <span class="hl">0</span> at the origin and
+          <span class="hl">${wMle ? F(priorTerm(wMle), 1) : '—'}</span> at the MLE. The data wants
+          one place, the prior wants another.</p>`,
+        viz: Object.assign({stage: 1}, pack)
+      });
+
+      st.push({
+        short: 'Multiply', title: 'Bayes: multiply them',
+        math: `<div class="narration" style="margin:0 0 12px;border-left-color:var(--accent)">
+            $$p(w \\mid y) \;\\propto\; \\underbrace{p(y \\mid X,w)}_{\\text{likelihood}}
+              \\times \\underbrace{p(w)}_{\\text{prior}}$$
+          </div>
+          <p class="mat-cap">a product is awkward to maximise, so take the logarithm</p>
+          <div class="narration" style="margin:10px 0 0;border-left-color:var(--accent)">
+            $$\\log p(w \\mid y) = \\log p(y\\mid X,w) + \\log p(w) + \\text{const}$$
+          </div>`,
+        narration: `<p>Posterior ∝ likelihood × prior. Taking the logarithm turns that product into
+          a <strong>sum</strong>, and the normalising constant drops out because it does not depend
+          on $w$.</p>
+          <p>This is the step that matters. Everything after it is bookkeeping: we now have two
+          terms to add up instead of two densities to multiply.</p>`,
+        viz: Object.assign({stage: 2}, pack)
+      });
+
+      st.push({
+        short: 'Negate', title: 'Negate: the objective appears',
+        math: `<div class="narration" style="margin:0 0 12px;border-left-color:var(--accent)">
+            $$J(w) \;=\; \\underbrace{\\frac{\\lVert y - Xw\\rVert^2}{2\\sigma^2}}_{\\text{data fit}}
+              \;+\; \\underbrace{${gauss ? '\\frac{\\lVert w\\rVert_2^2}{2\\tau^2}' : '\\frac{\\lVert w\\rVert_1}{b}'}}_{\\text{penalty}}$$
+          </div>
+          <div>${kv([
+            ['J at w = 0', F(J([0, 0]), 1)],
+            ['J at ŵ MLE', wMle ? F(J(wMle), 1) : '—'],
+            ['J at ŵ MAP', F(J(wMap), 1), 'good'],
+            ['— of which data fit', F(dataTerm(wMap), 1)],
+            ['— of which penalty', F(priorTerm(wMap), 1)]])}</div>`,
+        narration: `<p>Maximising the log posterior is minimising its negative, and
+          <strong>$-\\log(\\text{prior})$ is the penalty</strong>. Choose a prior, negate its log,
+          and you have derived a regularizer. Nothing was assumed about "shrinkage".</p>
+          <p>Look at the three values of $J$. The MAP beats both the origin and the MLE, because
+          the origin fits the data badly and the MLE pays too much penalty. The chart below shows
+          the whole trade-off.</p>`,
+        viz: Object.assign({stage: 3}, pack)
+      });
+
+      st.push({
+        short: 'λ = σ²/τ²', title: 'The penalty weight is not a free parameter',
+        math: `<p class="mat-cap">multiply through by 2σ² — it does not move the minimum</p>
+          <div class="narration" style="margin:6px 0 12px;border-left-color:var(--amber)">
+            ${gauss
+              ? `$$2\\sigma^2 J(w) = \\lVert y - Xw\\rVert^2 + \\underbrace{\\frac{\\sigma^2}{\\tau^2}}_{\\lambda}\\lVert w\\rVert_2^2$$`
+              : `$$2\\sigma^2 J(w) = \\lVert y - Xw\\rVert^2 + \\underbrace{\\frac{2\\sigma^2}{b}}_{\\lambda_1}\\lVert w\\rVert_1$$`}
+          </div>
+          <div>${kv([
+            ['σ² (standardized)', F(s2, 4)],
+            gauss ? ['τ²', F(t2, 4)] : ['b', F(bLap, 4)],
+            gauss ? ['λ = σ²/τ²', F(lam, 3), 'good'] : ['λ₁ = 2σ²/b', F(lamL1, 3), 'good'],
+            ['in rupee units', gauss ? F(lam * S.ysd * S.ysd, 1) : F(lamL1 * S.ysd, 1)]])}</div>`,
+        narration: `<p>${gauss
+            ? 'And there it is: <span class="hl">λ = σ²/τ²</span>, the ratio of noise variance to '
+              + 'prior variance. The penalty weight was never a knob to tune — it is a statement '
+              + 'about how noisy the data is relative to how confident the prior is.'
+            : 'For the Laplace prior the same manipulation gives <span class="hl">λ₁ = 2σ²/b</span>.'}</p>
+          <p>Noisy data (large σ) or a confident prior (small ${gauss ? 'τ' : 'b'}) both mean more
+          shrinkage, and for the same reason. Drag the two sliders above and watch λ move:
+          it is currently <span class="hl">${F(gauss ? lam : lamL1, 3)}</span>.</p>
+          <p>The assignment fixes σ = 10 and τ = 1, giving λ = 100 in raw rupee units. Cross-validation
+          disagrees with that choice, which is the argument you are asked to make in
+          <a href="assignments.html#t2">Task 2</a>.</p>`,
+        viz: Object.assign({stage: 3}, pack)
+      });
+
+      st.push({
+        short: 'Find the mode', title: 'Solve for the mode',
+        math: `<div class="narration" style="margin:0 0 12px;border-left-color:var(--accent)">
+            ${gauss
+              ? `$$\\nabla J = 0 \;\\Rightarrow\; \\hat w_{\\text{MAP}} = (X^\\top X + \\lambda I)^{-1}X^\\top y$$`
+              : `$$\\text{no closed form; coordinate descent as in §4}$$`}
+          </div>
+          ${row('ŵ MAP =', vec(wMap, {highlight: [[0, 0], [1, 0]]}))}
+          ${wMle ? row('ŵ MLE =', vec(wMle, {dim: [[0, 0], [1, 0]]})) : ''}
+          <div style="margin-top:12px">${kv([
+            ['‖ŵ‖₂ retained vs MLE', (100 * shrink).toFixed(0) + '%'],
+            ['coefficients at exactly zero', String(wMap.filter(v => Math.abs(v) < 1e-9).length),
+             wMap.some(v => Math.abs(v) < 1e-9) ? 'warn' : 'zero'],
+            ['distance from MLE', F(Math.hypot(wMap[0] - ref[0], wMap[1] - ref[1]), 4)],
+            ['distance from origin', F(Math.sqrt(l2sq(wMap)), 4)]])}</div>`,
+        narration: `<p>${gauss
+            ? 'Setting the gradient to zero gives the ridge formula — but notice that we did not '
+              + 'start from ridge. We started from a prior, and ridge is what came out.'
+            : 'The ℓ₁ term is not differentiable at zero, so there is no closed form and we fall '
+              + 'back on coordinate descent. The mode can now sit exactly on an axis.'}</p>
+          <p>The mode sits between the two things pulling on it: the MLE and the origin. On the
+          slice chart below, that is the point where the falling data term and the rising penalty
+          sum to their minimum.</p>
+          ${shrink > 0.97
+            ? `<p><strong>Note how little happened.</strong> The estimate kept
+               ${(100 * shrink).toFixed(0)}% of its length, so at τ = ${F(mapTau, 3)} this prior is
+               too vague to matter against ${n} trips. That is not a flaw in the method — it is the
+               finding <a href="assignments.html#t2">Task 2</a> asks you to report, and the reason
+               cross-validation rejects the assignment's τ = 1. Pull τ down to about 0.03 to make
+               it a real contest.</p>`
+            : ''}
+          ${wMap.some(v => Math.abs(v) < 1e-9)
+            ? '<p><strong>One coefficient is exactly zero.</strong> A Gaussian prior at this same '
+              + 'variance could not do that, however small you made τ.</p>' : ''}`,
+        viz: Object.assign({stage: 4}, pack)
+      });
+
+      st.push({
+        short: 'Dial τ', title: 'What τ controls, end to end',
+        math: `<div>${kv([
+            ['τ → ∞  (no prior)', wMle ? `(${F(wMle[0], 2)}, ${F(wMle[1], 2)})  = MLE` : 'MLE undefined'],
+            [`τ = ${F(mapTau, 2)}  (here)`, `(${F(wMap[0], 2)}, ${F(wMap[1], 2)})`, 'good'],
+            ['τ → 0  (certain of zero)', '(0.00, 0.00)  = the prior wins'],
+            [gauss ? 'λ = σ²/τ² here' : 'λ₁ = 2σ²/b here', F(gauss ? lam : lamL1, 3)]])}</div>
+          <p class="muted small" style="margin-top:12px">The dashed curve on the right is every MAP
+          estimate as τ sweeps across its whole range, and the chart below it plots the same path
+          coefficient by coefficient.</p>`,
+        narration: `<p>τ interpolates continuously between two extremes. A vague prior
+          (large τ) lets the likelihood win and the MAP converges on the MLE; a dogmatic prior
+          (small τ) crushes everything to zero regardless of the data.</p>
+          <p>Every penalized estimator in this course is a point on a curve like this one. Ridge
+          is the Gaussian version, Lasso the Laplace version, and choosing λ by cross-validation
+          is choosing where on the curve to stand when you have no honest prior to quote.</p>`,
+        viz: Object.assign({stage: 5}, pack)
+      });
+
+      st.push({
+        short: 'Both priors', title: 'The same construction, the other prior',
+        math: `${row(gauss ? 'ŵ MAP Gaussian =' : 'ŵ MAP Laplace =', vec(wMap, {highlight: [[0, 0], [1, 0]]}))}
+          ${row(gauss ? 'ŵ MAP Laplace =' : 'ŵ MAP Gaussian =', vec(wOther))}
+          <div style="margin-top:12px">${kv([
+            ['same prior variance?', 'yes — b = τ/√2', 'good'],
+            ['Gaussian zeros', String((gauss ? wMap : wOther).filter(v => Math.abs(v) < 1e-9).length), 'zero'],
+            ['Laplace zeros', String((gauss ? wOther : wMap).filter(v => Math.abs(v) < 1e-9).length),
+             (gauss ? wOther : wMap).some(v => Math.abs(v) < 1e-9) ? 'warn' : 'zero'],
+            ['J(Gaussian mode)', F(J(gauss ? wMap : wOther), 2)],
+            ['J(Laplace mode)', F(J(gauss ? wOther : wMap), 2)]])}</div>
+          <p class="muted small" style="margin-top:10px">Both J values are computed under the
+          <em>currently selected</em> prior, so the selected one is necessarily lower. Switch the
+          prior to see the comparison reverse.</p>`,
+        narration: `<p>Two priors, one construction, two different penalties. The Gaussian gives
+          $\\lambda\\lVert w\\rVert_2^2$ and never reaches zero; the Laplace gives
+          $\\lambda_1\\lVert w\\rVert_1$ and can. Nothing else changed — not the data, not the
+          likelihood, not the algebra.</p>
+          <p>That is the whole reason this course treats Ridge and Lasso as the same idea with a
+          different assumption, rather than as two unrelated tricks. Go on to
+          <a href="#ridge">§3</a> for the Gaussian case solved in closed form, and
+          <a href="#lasso">§4</a> for the Laplace case solved by coordinate descent.</p>
+          ${!(gauss ? wOther : wMap).some(x => Math.abs(x) < 1e-9)
+            ? `<p><strong>No zero yet, and that is worth understanding.</strong> Deriving λ from a
+               stated prior — rather than picking it — means an exact zero needs a prior tight
+               enough to outvote the data. Against ${n} trips that is roughly τ below 0.01. Two ways
+               to see one: raise the noise σ toward ₹40, or pick a feature the data barely supports,
+               such as <code>is_weekend</code>, in the setup panel at the top. Its true coefficient
+               is zero, so the likelihood puts up almost no fight. The zeros in
+               <a href="#lasso">§4</a> come easily because α is chosen directly there, not derived
+               from a prior.</p>`
+            : ''}`,
+        viz: Object.assign({stage: 6}, pack)
+      });
+      return st;
+    },
+
+    viz(root, s) {
+      const v = s.viz, stage = v.stage;
+      const host = root.querySelector('.viz-pane');
+
+      /* Contours are drawn at 1σ, 2σ and 3σ of each distribution: levels ½d². */
+      const SIG = [0.5, 2, 4.5];
+      const contours = [];
+      if (stage >= 0) contours.push({A: v.Alik, center: v.ref, levels: SIG,
+        color: 'var(--c-ols)', dashed: true, opacity: .85});
+      if (stage >= 1 && v.Apri) contours.push({A: v.Apri, center: [0, 0], levels: SIG,
+        color: 'var(--c-ridge)', dashed: true, opacity: .8});
+      if (stage >= 4) contours.push({A: v.Apost, center: v.wMap, levels: SIG,
+        color: 'var(--accent)', width: 2, opacity: 1});
+
+      const path = [];
+      if (stage >= 5) {
+        const pts = [];
+        for (let i = 0; i <= 70; i++) {
+          const tt = Math.pow(10, -1.6 + 3.4 * i / 70);
+          const w = v.gauss
+            ? ML.ridge(S.Z, S.y, v.s2 / (tt * tt)).w
+            : ML.elasticNet(S.Z, S.y, v.s2 / (S.n * (tt / Math.SQRT2)), 1.0).w;
+          pts.push(w);
+        }
+        path.push({pts, color: 'var(--c-enet)', dashed: true, dots: false, width: 1.8});
+      }
+
+      /* These four points bunch together in the middle of the plane, so each label
+         gets its own vertical offset rather than overprinting its neighbours. */
+      const points = [];
+      if (v.wMle) points.push({w: v.wMle, label: 'MLE', color: 'var(--c-ols)', r: 5, dy: -4});
+      if (stage >= 1) points.push({w: [0, 0], label: 'prior', color: 'var(--c-ridge)', r: 4.5, dy: -4});
+      if (stage >= 4) points.push({w: v.wMap, label: 'MAP', color: 'var(--accent)', r: 6.5, dy: 22});
+      if (stage >= 6) points.push({w: v.wOther,
+        label: v.gauss ? 'Laplace' : 'Gaussian', color: 'var(--c-lasso)', r: 5, dy: 38});
+
+      plane(host, {contours, path, points,
+        constraint: stage >= 1 && !v.gauss ? {type: 'l1', t: l1(v.wMap)} : null});
+
+      host.insertAdjacentHTML('beforeend',
+        `<div class="legend" style="margin-top:8px">
+           <span><i style="background:var(--c-ols)"></i>likelihood</span>
+           ${stage >= 1 ? '<span><i style="background:var(--c-ridge)"></i>prior</span>' : ''}
+           ${stage >= 4 ? '<span><i style="background:var(--accent)"></i>posterior</span>' : ''}
+         </div>
+         <p class="muted small" style="margin:6px 0 0">${
+           stage === 0 ? 'Contours at 1σ, 2σ and 3σ of the likelihood. Its centre is the MLE.'
+           : stage === 1 ? 'The prior is centred on the origin and favours no direction. Note how much wider or narrower it is than the likelihood — that ratio decides the outcome.'
+           : stage < 4 ? 'Two beliefs, about to be combined. Nothing has moved yet.'
+           : stage < 5 ? 'The posterior (green) sits between the two, closer to whichever is more concentrated.'
+           : stage < 6 ? 'The purple dashed curve is every MAP estimate as τ runs from 0.025 to 60.'
+           : 'Both modes at the same prior variance. The Laplace mode is the one that can land on an axis.'}</p>`);
+
+      /* ---- slice: the objective along the ray through the MAP ---- */
+      const sp = root.querySelector('.slice-pane');
+      if (sp) {
+        if (stage < 3) {
+          sp.innerHTML = '<p class="muted small" style="margin:0;padding:22px 0">'
+            + 'The objective does not exist yet — it appears once the prior is negated and added '
+            + 'to the data term (step 3).</p>';
+        } else {
+          const T = [];
+          for (let i = 0; i <= 120; i++) T.push(1.6 * i / 120);
+          const at = t => [v.wMap[0] * t, v.wMap[1] * t];
+          const series = [
+            {name: 'data fit', color: 'var(--c-ols)', dashed: true,
+             points: T.map(t => [t, v.dataTerm(at(t))])},
+            {name: 'penalty', color: 'var(--c-ridge)', dashed: true,
+             points: T.map(t => [t, v.priorTerm(at(t))])},
+            {name: 'J = data + penalty', color: 'var(--accent)', width: 2.6,
+             points: T.map(t => [t, v.J(at(t))])}
+          ];
+          Plot.line(sp, series, {height: 260, dots: false,
+            xLabel: 't   (0 = prior mode, 1 = MAP)', yLabel: 'negative log posterior',
+            vLine: 1, vLabel: 'MAP'});
+          sp.insertAdjacentHTML('beforeend',
+            `<p class="muted small" style="margin:6px 0 0">Walking out from the origin toward the
+             MAP, the data term falls and the penalty rises. Their sum bottoms out at
+             <strong>t = 1</strong>, which is the definition of the mode. Past that, extra fit
+             costs more penalty than it is worth.</p>`);
+        }
+      }
+
+      /* ---- coefficients against τ ---- */
+      const tp = root.querySelector('.tau-pane');
+      if (tp) {
+        const grid = [];
+        for (let i = 0; i <= 60; i++) grid.push(Math.pow(10, -1.6 + 3.4 * i / 60));
+        const w1 = [], w2 = [];
+        grid.forEach(tt => {
+          const w = v.gauss
+            ? ML.ridge(S.Z, S.y, v.s2 / (tt * tt)).w
+            : ML.elasticNet(S.Z, S.y, v.s2 / (S.n * (tt / Math.SQRT2)), 1.0).w;
+          w1.push([tt, w[0]]); w2.push([tt, w[1]]);
+        });
+        Plot.line(tp, [
+          {name: S.labels[0], points: w1, color: 'var(--c-ridge)'},
+          {name: S.labels[1], points: w2, color: 'var(--rose)'}
+        ], {height: 260, dots: false, logX: true, zeroLine: true, inlineLabels: true,
+            xLabel: 'prior width τ (log scale)', yLabel: 'coefficient',
+            vLine: mapTau, vLabel: 'τ = ' + F(mapTau, 2)});
+        tp.insertAdjacentHTML('beforeend',
+          `<p class="muted small" style="margin:6px 0 0">Left edge: the prior wins and both
+           coefficients are crushed. Right edge: the likelihood wins and they settle on the MLE.
+           ${v.gauss ? 'With a Gaussian prior they approach zero without reaching it.'
+                     : 'With a Laplace prior they hit zero exactly, at a finite τ.'}</p>`);
+      }
+    }
+  });
+
+  $('mapTau').addEventListener('input', e => {
+    mapTau = Math.pow(10, +e.target.value);
+    $('mapTauV').textContent = F(mapTau, mapTau < 1 ? 3 : 2);
+    mapPlayer.rebuild(true);
+  });
+  $('mapSigma').addEventListener('input', e => {
+    mapSigma = +e.target.value;
+    $('mapSigmaV').textContent = mapSigma;
+    mapPlayer.rebuild(true);
+  });
+  $('mapPrior').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...e.currentTarget.children].forEach(c => c.classList.toggle('on', c === b));
+    mapPrior = b.dataset.p;
+    mapPlayer.rebuild(true);
+  });
+
+  /* ======================================================================
+     3 · RIDGE
   ====================================================================== */
   let ridgeAlpha = 0.5;
   const ridgePlayer = makePlayer($('wRidge'), {
@@ -529,7 +912,7 @@
   });
 
   /* ======================================================================
-     3 & 4 · COORDINATE DESCENT (Lasso and Elastic Net)
+     4 & 5 · COORDINATE DESCENT (Lasso and Elastic Net)
   ====================================================================== */
   /** Run cyclic coordinate descent, recording every single update. */
   function cdTrace(alpha, rho, start) {
@@ -780,7 +1163,7 @@
   });
 
   /* ======================================================================
-     5 · BAYESIAN UPDATING
+     6 · BAYESIAN UPDATING
   ====================================================================== */
   let bayesTau = 1, bayesSigma = 10;
   const bayesPlayer = makePlayer($('wBayes'), {
@@ -899,7 +1282,7 @@
   /* ======================================================================
      boot
   ====================================================================== */
-  const ALL = [olsPlayer, ridgePlayer, lassoPlayer, enetPlayer, bayesPlayer];
+  const ALL = [olsPlayer, mapPlayer, ridgePlayer, lassoPlayer, enetPlayer, bayesPlayer];
   UI.onDraw(() => {
     rebuild();
     S.drawSetup();
