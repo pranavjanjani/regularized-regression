@@ -13,6 +13,7 @@
     ['uber.html',         'Case Study'],
     ['algorithms.html',   'Algorithms'],
     ['lab.html',          'Lab'],
+    ['logistic.html',     'Logistic'],
     ['dataset.html',      'Data'],
     ['assignments.html',  'Assignments'],
     ['notebooks.html',    'Notebooks'],
@@ -71,6 +72,7 @@
           <h5>Practice</h5>
           <ul>
             <li><a href="lab.html">Interactive lab</a></li>
+            <li><a href="logistic.html">Logistic regression lab</a></li>
             <li><a href="dataset.html">Dataset explorer</a></li>
             <li><a href="notebooks.html">Jupyter notebooks</a></li>
           </ul>

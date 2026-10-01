@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import nbformat as nbf
 from nbbuild import CONVENTIONS, HEADER, SETUP, build, code, md   # noqa: E402
+import nb05_logistic                                              # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = f'{ROOT}/notebooks'
@@ -1212,7 +1213,8 @@ def main():
     specs = [('01_mle_and_ridge', nb01()),
              ('02_lasso_coordinate_descent', nb02()),
              ('03_elastic_net', nb03()),
-             ('04_surge_engine_and_bayes', nb04())]
+             ('04_surge_engine_and_bayes', nb04()),
+             ('05_logistic_regression', nb05_logistic.cells(preamble))]
     for name, cells in specs:
         for suffix, is_starter in [('starter', True), ('solution', False)]:
             nb = build(cells, starter=is_starter)

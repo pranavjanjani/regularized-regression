@@ -485,6 +485,154 @@ def bonus(df):
 
 
 # --------------------------------------------------------------------------- #
+# Task 6 — penalized logistic regression
+# --------------------------------------------------------------------------- #
+CUT = 100.0
+
+
+def _logloss(y, p, eps=1e-12):
+    p = np.clip(p, eps, 1 - eps)
+    return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+
+
+def _auc(y, score):
+    """Mann-Whitney identity: exact, and correct in the presence of ties."""
+    order = np.argsort(score, kind='mergesort')
+    ranks = np.empty(len(score), float)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and score[order[j + 1]] == score[order[i]]:
+            j += 1
+        ranks[order[i:j + 1]] = (i + j) / 2 + 1
+        i = j + 1
+    P, N = int(y.sum()), int((1 - y).sum())
+    if P == 0 or N == 0:
+        return float('nan')
+    return float((ranks[y == 1].sum() - P * (P + 1) / 2) / (P * N))
+
+
+def _cv_logloss(Z, y, k, fit):
+    n = len(y)
+    idx = np.arange(n)
+    tot, cnt = 0.0, 0
+    for f in range(k):
+        te = np.zeros(n, bool)
+        te[idx[f::k]] = True
+        m = fit(Z[~te], y[~te])
+        p = m.predict_proba(Z[te])[:, 1]
+        tot += _logloss(y[te], p) * te.sum()
+        cnt += te.sum()
+    return tot / cnt
+
+
+def task6(df):
+    """Logistic regression on high_surge = surge > CUT.
+
+    Note on reproducing this: scikit-learn's liblinear solver penalizes the
+    intercept by default, which our objective does not. Use lbfgs or saga, or
+    coefficients will disagree by far more than solver tolerance."""
+    import warnings
+    from sklearn.linear_model import LogisticRegression
+    warnings.filterwarnings('ignore')
+
+    out = {'cut': CUT}
+    d = df.copy()
+    d['is_bad_weather'] = ((d.is_rain == 1) & (d.traffic_speed_kmph < 25)).astype(int)
+    feats = BASE8 + ['is_bad_weather']
+    Xtr, Xte, ytr_c, yte_c = split(d, feats)
+    Ztr, Zte, _, _ = standardize(Xtr, Xte)
+    ytr = (ytr_c > CUT).astype(int)
+    yte = (yte_c > CUT).astype(int)
+    n = len(ytr)
+
+    out['n_pos_train'] = int(ytr.sum())
+    out['n_pos_test'] = int(yte.sum())
+    out['base_rate_train'] = round(float(max(ytr.mean(), 1 - ytr.mean())), 4)
+    out['base_rate_test'] = round(float(max(yte.mean(), 1 - yte.mean())), 4)
+
+    # OLS on the 0/1 label: how often does it leave [0, 1]?
+    ybar = ytr.mean()
+    w_ols = np.linalg.solve(Ztr.T @ Ztr, Ztr.T @ (ytr - ybar))
+    pred = Ztr @ w_ols + ybar
+    out['ols_on_label_outside_01'] = int(((pred < 0) | (pred > 1)).sum())
+
+    grid = np.logspace(-3, 0.3, 24)
+    rows = []
+    for name, l1r in [('no penalty', None), ('l2', 0.0), ('l1', 1.0), ('elastic', 0.5)]:
+        if l1r is None:
+            alpha, mk = 1e-6, (lambda a: LogisticRegression(C=1e6, solver='lbfgs',
+                                                            max_iter=50000, tol=1e-10))
+        else:
+            def mk(a, l1r=l1r):
+                C = 1.0 / (n * a)
+                if l1r == 0.0:
+                    return LogisticRegression(C=C, solver='lbfgs', max_iter=50000, tol=1e-11)
+                return LogisticRegression(C=C, penalty='elasticnet', l1_ratio=l1r,
+                                          solver='saga', max_iter=200000, tol=1e-9)
+            best = None
+            for a in grid:
+                cv = _cv_logloss(Ztr, ytr, 5, lambda Z, t, a=a: mk(a).fit(Z, t))
+                if best is None or cv < best[1]:
+                    best = (float(a), cv)
+            alpha = best[0]
+        m = mk(alpha).fit(Ztr, ytr)
+        p = m.predict_proba(Zte)[:, 1]
+        hat = (p >= 0.5).astype(int)
+        coef = m.coef_[0]
+        rows.append({
+            'model': name, 'alpha': None if l1r is None else round(alpha, 5),
+            'test_logloss': round(_logloss(yte, p), 4),
+            'test_auc': round(_auc(yte, p), 4),
+            'test_accuracy': round(float((hat == yte).mean()), 4),
+            'nonzero': int((np.abs(coef) > 1e-8).sum()),
+            'dropped': [SHORT[f] for f, v in zip(feats, coef) if abs(v) < 1e-8],
+            'coefs': {SHORT[f]: round(float(v), 3) for f, v in zip(feats, coef)},
+            'intercept': round(float(m.intercept_[0]), 3),
+        })
+    out['models'] = rows
+
+    # elimination order under the l1 penalty
+    order, seen = [], set()
+    for a in np.logspace(-3, 0.6, 60):
+        m = LogisticRegression(C=1.0 / (n * a), penalty='elasticnet', l1_ratio=1.0,
+                               solver='saga', max_iter=100000, tol=1e-8).fit(Ztr, ytr)
+        for j, v in enumerate(m.coef_[0]):
+            if abs(v) < 1e-8 and j not in seen:
+                seen.add(j)
+                order.append(SHORT[feats[j]])
+    out['l1_elimination_order'] = order
+
+    # the comparison that matters: predict rupees, then threshold the prediction
+    a_lin, best = 0.01, None
+    for x in np.logspace(-3, 1.7, 24):
+        cv = kfold_cv(Ztr, ytr_c, 5, lambda Z, t, x=x: ridge_closed_form(Z, t, x))
+        if best is None or cv < best:
+            best, a_lin = cv, float(x)
+    w_lin = ridge_closed_form(Ztr, ytr_c - ytr_c.mean(), a_lin)
+    yhat = Zte @ w_lin + ytr_c.mean()
+    hard = (yhat > CUT).astype(int)
+    out['linear_then_threshold'] = {
+        'ridge_alpha': round(a_lin, 5),
+        'accuracy': round(float((hard == yte).mean()), 4),
+        'auc_from_ranking': round(_auc(yte, yhat), 4),
+    }
+    best_cls = max(r['test_auc'] for r in rows)
+    out['best_classifier_auc'] = best_cls
+    out['dichotomising_costs_nothing'] = bool(
+        out['linear_then_threshold']['auc_from_ranking'] >= best_cls - 0.005)
+
+    # does the l1 logistic select the same features as the l1 regression?
+    lin_l1 = coordinate_descent(Ztr, ytr_c - ytr_c.mean(), 2.0, 1.0)[0]
+    log_l1 = next(r for r in rows if r['model'] == 'l1')
+    out['selection_overlap'] = {
+        'regression_kept': [SHORT[f] for f, v in zip(feats, lin_l1) if abs(v) > 1e-8],
+        'classifier_kept': [k for k, v in log_l1['coefs'].items() if abs(v) > 1e-8],
+    }
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # comparison table (Deliverable 2)
 # --------------------------------------------------------------------------- #
 def comparison(df):
@@ -525,7 +673,8 @@ def run_all():
             ('is_peak', 'is_rain'), ('is_peak', 'drivers_available_500m'),
             ('open_requests_500m', 'historical_demand')]},
         'task1': task1(df), 'task2': task2(df), 'task3': task3(df),
-        'task4': task4(df), 'task5': task5(df), 'bonus': bonus(df),
+        'task4': task4(df), 'task5': task5(df), 'task6': task6(df),
+        'bonus': bonus(df),
         'comparison': comparison(df),
     }
     return res

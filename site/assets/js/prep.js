@@ -112,10 +112,49 @@
     return {w, alpha: Math.sqrt(lo * hi)};
   }
 
+  /**
+   * Same split and scaling as build(), but with a BINARY target derived by
+   * thresholding the surge. Used by the logistic lab.
+   *   high_surge = surge_additive_inr > cut      (cut defaults to ₹100)
+   * Dichotomising a continuous outcome throws information away; the lab says so
+   * and measures the cost rather than hiding it.
+   */
+  function buildBinary(keys, cut) {
+    const d = build(keys);
+    const thr = cut == null ? 100 : cut;
+    const surge = raw(TARGET);
+    const cls = surge.map(v => (v > thr ? 1 : 0));
+    return Object.assign({}, d, {
+      cut: thr, surge,
+      cls, clsTr: cls.slice(0, N_TRAIN), clsTe: cls.slice(N_TRAIN),
+      baseRate: cls.slice(0, N_TRAIN).reduce((a, b) => a + b, 0) / N_TRAIN
+    });
+  }
+
+  /** k-fold CV for a classifier, scored by mean log-loss. */
+  function kFoldLogLoss(Z, y, k, fit) {
+    const n = y.length, idx = Array.from({length: n}, (_, i) => i);
+    const folds = Array.from({length: k}, () => []);
+    idx.forEach((v, i) => folds[i % k].push(v));
+    let tot = 0, cnt = 0;
+    for (let f = 0; f < k; f++) {
+      const te = new Set(folds[f]);
+      const Ztr = [], ytr = [], Zte = [], yte = [];
+      for (let i = 0; i < n; i++)
+        (te.has(i) ? (Zte.push(Z[i]), yte.push(y[i])) : (Ztr.push(Z[i]), ytr.push(y[i])));
+      const m = fit(Ztr, ytr);
+      const p = ML.predictProba(Zte, m.w, m.b);
+      tot += ML.logLoss(yte, p) * yte.length;
+      cnt += yte.length;
+    }
+    return tot / cnt;
+  }
+
   /** Log-spaced penalty grid. */
   const lamGrid = (lo, hi, m = 36) =>
     Array.from({length: m}, (_, i) => lo * Math.pow(hi / lo, i / (m - 1)));
 
   global.Prep = {D, FEATURES, BASE8, TARGET, N_TRAIN, col, raw,
-                 build, fit, score, unscale, predictRow, lamGrid, fitAtBudget};
+                 build, fit, score, unscale, predictRow, lamGrid, fitAtBudget,
+                 buildBinary, kFoldLogLoss};
 })(window);

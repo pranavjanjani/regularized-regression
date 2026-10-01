@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script defer src="assets/js/site.js?v=1bb33b97"></script>
+<script defer src="assets/js/site.js?v=4aad8b8e"></script>
 </head>
 <body>
 
@@ -18,8 +18,8 @@
   <div class="wrap">
     <div class="eyebrow">Assessment · 100% of the module</div>
     <h1>Build a surge pricing engine</h1>
-    <p class="lede">Five tasks, about three and a half hours of work, building one system end to
-    end. Each is marked separately, and each feeds the next.</p>
+    <p class="lede">Six tasks, about four and a half hours of work, building one system end to end.
+    Each is marked separately, and each feeds the next.</p>
     <div class="dl-row">
       <a class="btn primary" href="assignments/Regression_Assignment.pdf">Download brief (PDF)</a>
       <a class="btn" href="assignments/Regression_Assignment.docx">Download brief (Word)</a>
@@ -143,7 +143,7 @@ runs these exact computations step by step, and <a href="lab.html#collinear">Lab
 coefficient thrashing as $n$ grows. Use them to confirm your hand arithmetic, not to replace it.</p>
 
 <!-- ============== TASK 2 ============== -->
-<h2 id="t2">Task 2 · Ridge as MAP <span class="badge ridge">20 marks · 45 min</span></h2>
+<h2 id="t2">Task 2 · Ridge as MAP <span class="badge ridge">18 marks · 45 min</span></h2>
 
 <p><strong>Goal:</strong> implement the Gaussian-prior MAP estimator and read a coefficient
 path. <a href="algorithms.html#map">Walkthrough 2</a> derives the objective you are
@@ -174,7 +174,7 @@ implementing, and <a href="algorithms.html#ridge">Walkthrough 3</a> solves it.</
 </div>
 
 <!-- ============== TASK 3 ============== -->
-<h2 id="t3">Task 3 · Lasso and coordinate descent <span class="badge lasso">20 marks · 45 min</span></h2>
+<h2 id="t3">Task 3 · Lasso and coordinate descent <span class="badge lasso">18 marks · 50 min</span></h2>
 
 <p><strong>Goal:</strong> implement soft-thresholding, then use it on a real selection problem.</p>
 
@@ -215,6 +215,16 @@ Ground truth is in <code>new_city_truth.csv</code> — do not open it until step
   whether you ever came near it.</li>
 </ol>
 
+<h3 id="t3c">3c · The same penalty, a different question</h3>
+<p>You meet the ℓ₁ penalty again in Task 6, on a <em>classification</em> target. Set the comparison
+up now, in one cell, and keep the output:</p>
+<ol>
+  <li>Record the set of features your Lasso keeps at $\alpha = 2$ on the nine-feature regression.</li>
+  <li>Write down, <strong>before fitting anything</strong>, which features you expect an
+  &#8467;&#8321;-penalized <em>logistic</em> model to keep once the target becomes
+  <code>high_surge = surge &gt; &#8377;100</code>. Task 6c checks your prediction.</li>
+</ol>
+
 <div class="callout">
   <span class="ct">Do not assume the fancier method wins</span>
   <p>Step 5 has a counter-intuitive answer here, and reporting it honestly is worth more than
@@ -227,7 +237,7 @@ Ground truth is in <code>new_city_truth.csv</code> — do not open it until step
 this live.</p>
 
 <!-- ============== TASK 4 ============== -->
-<h2 id="t4">Task 4 · Elastic Net and the grouping effect <span class="badge enet">20 marks · 60 min</span></h2>
+<h2 id="t4">Task 4 · Elastic Net and the grouping effect <span class="badge enet">18 marks · 60 min</span></h2>
 
 <p><strong>Goal:</strong> show that the three estimators handle a correlated group in three
 distinguishable ways.</p>
@@ -262,7 +272,7 @@ distinguishable ways.</p>
 </div>
 
 <!-- ============== TASK 5 ============== -->
-<h2 id="t5">Task 5 · The surge engine <span class="badge ok">20 marks · 30 min</span></h2>
+<h2 id="t5">Task 5 · The surge engine <span class="badge ok">18 marks · 30 min</span></h2>
 
 <p><strong>Goal:</strong> assemble a system rather than a model.</p>
 <ol>
@@ -289,6 +299,91 @@ final = base + surge</code></pre></li>
 
 <p class="small muted"><strong>Check yourself:</strong> <a href="uber.html#worked">Case study §7</a>
 is a working reference implementation of steps 1–3.</p>
+
+<!-- ============== TASK 6 ============== -->
+<h2 id="t6">Task 6 · Logistic regression <span class="badge ok">18 marks · 60 min</span></h2>
+
+<p><strong>Goal:</strong> change the likelihood, keep the priors, and find that the penalties behave
+exactly as before — then ask whether the binary target was worth creating.</p>
+
+<h3 id="t6a">6a · Why not least squares</h3>
+<p>Build the label <code>high_surge = (surge_additive_inr &gt; 100)</code> on the nine features.</p>
+<ol>
+  <li>Report the number of positives in train and test, and the <strong>base rate</strong> — the
+  accuracy of always predicting "no alert". Every accuracy you quote from here on must be shown
+  next to it.</li>
+  <li>Fit ordinary least squares to the 0/1 label. Count how many of the 150 fitted values fall
+  outside $[0,1]$, and say in one sentence why that disqualifies it as a probability model.</li>
+  <li>Write down the Bernoulli log-likelihood and show that maximising it is minimising the average
+  log-loss. Two lines; it is the same manoeuvre as Task 1 with a different density.</li>
+</ol>
+
+<h3 id="t6b">6b · Implement it</h3>
+<ol>
+  <li>Implement penalized logistic regression <strong>from scratch</strong>, minimising
+  $\frac{1}{n}\sum_i\big[-y_i\log p_i-(1-y_i)\log(1-p_i)\big]
+   + \alpha\rho\lVert w\rVert_1 + \frac{\alpha(1-\rho)}{2}\lVert w\rVert_2^2$
+  with $p_i = \sigma(x_i^\top w + b)$ and the intercept <strong>unpenalized</strong>. Either
+  iteratively reweighted least squares (for $\rho = 0$) or proximal gradient descent (any $\rho$)
+  is acceptable; state which you chose and why.</li>
+  <li>Verify against <code>sklearn.linear_model.LogisticRegression</code> at $C = 1/(n\alpha)$,
+  to 3 decimal places.</li>
+</ol>
+
+<div class="callout warn">
+  <span class="ct">A trap worth warning you about</span>
+  <p>If you compare against <code>solver='liblinear'</code>, your coefficients will disagree by far
+  more than solver tolerance and no amount of tuning will fix it: <strong>liblinear penalizes the
+  intercept</strong> and your objective does not. Use <code>lbfgs</code> for ℓ₂ or
+  <code>saga</code> for ℓ₁ and elastic net. Diagnosing this yourself and saying so earns credit —
+  it is the same discipline as the $1/2n$ factor in Task 3a.</p>
+</div>
+
+<h3 id="t6c">6c · The penalties, again</h3>
+<ol>
+  <li>Plot coefficient paths over a log α grid at $\rho = 0$ and $\rho = 1$. Confirm that ℓ₂ never
+  reaches zero and ℓ₁ does.</li>
+  <li>Record the ℓ₁ <strong>elimination order</strong> and compare it with your Task 3c prediction.
+  It will probably be wrong. Explain why — which features go first here, and what does that tell you
+  about what an ℓ₁ ordering actually measures?</li>
+  <li>Tune all four models (no penalty, ℓ₂, ℓ₁, elastic net) by 5-fold cross-validation on
+  <strong>log-loss</strong>, not accuracy. Report held-out log-loss, AUC, accuracy and non-zero
+  count for each.</li>
+</ol>
+
+<h3 id="t6d">6d · The threshold is not the model's job</h3>
+<ol>
+  <li>Plot the ROC curve for your best model and report AUC.</li>
+  <li>Give the confusion matrix at thresholds 0.3, 0.5 and 0.7, stating how many real alerts are
+  missed and how many false alarms raised at each.</li>
+  <li>Dispatch tells you a missed alert costs roughly four times a false alarm. Choose the threshold
+  that minimises expected cost, show the arithmetic, and say which layer of the system that number
+  belongs in.</li>
+</ol>
+
+<h3 id="t6e">6e · Was the label worth making?</h3>
+<p>The binary target was manufactured by cutting a continuous one. Measure what that cost.</p>
+<ol>
+  <li>Take your Ridge model from Task 2, predict the surge in rupees on the held-out trips, and
+  threshold the <em>prediction</em> at ₹100 to get a yes/no.</li>
+  <li>Compare its accuracy, and the AUC implied by ranking its rupee predictions, against your best
+  purpose-built classifier.</li>
+  <li>Conclude. If thresholding the regression matches or beats the classifier, say so plainly and
+  explain what dichotomising cost you. If it does not, explain what the classifier is exploiting
+  that the regression is not.</li>
+</ol>
+
+<div class="callout tip">
+  <span class="ct">This is the part that is really being marked</span>
+  <p>6e is a question about modelling judgement, not implementation. The strongest answers notice
+  that the regression retains information the classifier discarded — <em>how far</em> above the cut
+  a cell sits — and that this is the same objection raised against the hard $R/S &gt; 1.5$ threshold
+  in <a href="uber.html#ethics">the case study</a>, arrived at from the other direction.</p>
+</div>
+
+<p class="small muted"><strong>Check yourself:</strong> the
+<a href="logistic.html">logistic regression lab</a> runs every part of this interactively, and
+<a href="theory.html#logistic">Theory §8</a> has the derivation.</p>
 
 <!-- ============== BONUS ============== -->
 <h2 id="bonus">Bonus · The full posterior <span class="badge ok">+10 marks</span></h2>
@@ -332,6 +427,13 @@ is a working reference implementation of steps 1–3.</p>
     constraint (interpretability, stability across refits, latency or accuracy) and be honest if
     accuracy is not it.</p>
   </div>
+  <div class="card">
+    <div class="card-num">DELIVERABLE 4</div>
+    <h4 style="margin-top:0">ROC curve and a justified threshold</h4>
+    <p class="small muted">One figure with the ROC curve and AUC, the confusion matrix at your
+    chosen threshold, and the cost arithmetic behind it. Show the base rate beside every accuracy
+    you report.</p>
+  </div>
 </div>
 
 <h2 id="rubric">Marking rubric</h2>
@@ -341,7 +443,8 @@ is a working reference implementation of steps 1–3.</p>
   <tbody>
     <tr><td><strong>Distinction (70+)</strong></td>
         <td>Correct implementations, with a write-up that explains mechanisms rather than restating
-        outputs. Reports at least one result that contradicted expectation and investigates it.
+        outputs. Reports at least one result that contradicted expectation and investigates it —
+        Task 6c and 6e are both built to produce one.
         Notices the censoring at ₹150, or the non-linear $50/(S+1)$ term, unprompted. Distinguishes
         "these models differ" from "these models differ by more than noise".</td></tr>
     <tr><td><strong>Merit (60–69)</strong></td>

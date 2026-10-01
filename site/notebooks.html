@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script defer src="assets/js/site.js?v=1bb33b97"></script>
+<script defer src="assets/js/site.js?v=4aad8b8e"></script>
 </head>
 <body>
 
@@ -90,10 +90,24 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="pill-row"><span class="badge ok">Task 6</span><span class="badge lasso">ℓ₁</span><span class="badge ridge">ℓ₂</span></div>
+    <h3 style="margin-top:0">05 · Logistic regression</h3>
+    <p class="small">A Bernoulli likelihood in place of a Gaussian one, with the same priors.
+    Penalized logistic regression by proximal gradient descent, verified against
+    <code>sklearn</code>; coefficient paths; ROC and a threshold chosen from a stated cost ratio;
+    and a measurement of what dichotomising the target cost.</p>
+    <p class="muted small">≈ 20 cells · includes the <code>liblinear</code> intercept trap</p>
+    <div class="dl-row" style="margin-bottom:0">
+      <a class="btn primary" href="notebooks/05_logistic_regression_starter.ipynb" download>Download starter</a>
+      <a class="btn" href="notebooks/05_logistic_regression_solution.ipynb" download>Solution</a>
+    </div>
+  </div>
+
 </div>
 
 <h2 id="all">Everything at once</h2>
-<p>One archive with all eight notebooks, both datasets, the ground-truth file and the generator
+<p>One archive with all ten notebooks, both datasets, the ground-truth file and the generator
 script.</p>
 <div class="dl-row">
   <a class="btn primary" href="notebooks/regression_course_notebooks.zip" download>Download all (.zip)</a>
@@ -122,6 +136,10 @@ script.</p>
     <tr><td><code>np.linalg.solve(A, b)</code> rather than <code>inv(A) @ b</code></td>
         <td>Faster and numerically better conditioned. The explicit inverse appears exactly once,
         in Task 1, because there you are asked to look at it.</td></tr>
+    <tr><td>Logistic objective is mean log-loss plus the same penalty, intercept unpenalized</td>
+        <td>Matches <code>LogisticRegression</code> at $C = 1/(n\alpha)$ — but only with
+        <code>lbfgs</code> or <code>saga</code>. <code>liblinear</code> penalizes the intercept,
+        which this objective does not.</td></tr>
     <tr><td>Random seed fixed at 42 everywhere</td>
         <td>Bootstrap numbers should match the solution notebook exactly; if not, something else
         differs.</td></tr>

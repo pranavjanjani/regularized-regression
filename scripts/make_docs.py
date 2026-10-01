@@ -39,10 +39,11 @@ def brief():
     B += [('table',
            ['Task', 'Topic', 'Marks', 'Time'],
            [['1', 'Maximum likelihood by hand; two ways for OLS to fail', '10', '30 min'],
-            ['2', 'Ridge as MAP with a Gaussian prior', '20', '45 min'],
-            ['3', 'Lasso, soft-thresholding and coordinate descent', '20', '45 min'],
-            ['4', 'Elastic Net and the grouping effect', '20', '60 min'],
-            ['5', 'Assembling the surge engine', '20', '30 min'],
+            ['2', 'Ridge as MAP with a Gaussian prior', '18', '45 min'],
+            ['3', 'Lasso, soft-thresholding and coordinate descent', '18', '50 min'],
+            ['4', 'Elastic Net and the grouping effect', '18', '60 min'],
+            ['5', 'Assembling the surge engine', '18', '30 min'],
+            ['6', 'Logistic regression: a new likelihood, the same priors', '18', '60 min'],
             ['Bonus', 'The full Gaussian posterior', '+10', '30 min']],
            [0.08, 0.56, 0.16, 0.20])]
 
@@ -207,6 +208,15 @@ def brief():
         'tool for this particular job, say so and explain what the ℓ₂ term is doing to sparsity.',
         'State the theoretical bound on how many features Lasso can select when n = 60, and say '
         'whether you ever came near it.'])]
+    B += [('h2', '3c · The same penalty, a different question')]
+    B += [('p', 'You meet the ℓ₁ penalty again in Task 6, on a *classification* target. Set the '
+                'comparison up now, in one cell, and keep the output.')]
+    B += [('numbers', [
+        'Record the set of features your Lasso keeps at α = 2 on the nine-feature regression.',
+        'Write down, **before fitting anything**, which features you expect an ℓ₁-penalized '
+        '*logistic* model to keep once the target becomes `high_surge = surge > ₹100`. '
+        'Task 6c checks your prediction.'])]
+
     B += [('callout', 'note', 'Do not assume the more elaborate method wins',
            'Step 5 has a counter-intuitive answer here, and reporting it honestly is worth more '
            'than reporting the answer you expected. The grouping effect is what you want when a '
@@ -257,6 +267,71 @@ def brief():
                    'surge = min(max(surge, 0), 150)\n'
                    'final = base + surge')]
 
+    # ---------------- Task 6 ----------------
+    B += [('pagebreak',), ('h1', 'Task 6 · Logistic regression  (18 marks)')]
+    B += [('p', 'Change the likelihood, keep the priors, and find that the penalties behave '
+                'exactly as before. Then ask whether the binary target was worth creating.')]
+
+    B += [('h2', '6a · Why not least squares')]
+    B += [('p', 'Build the label `high_surge = (surge_additive_inr > 100)` on the nine features.')]
+    B += [('numbers', [
+        'Report the positives in train and test, and the **base rate** — the accuracy of always '
+        'predicting "no alert". Every accuracy you quote from here must be shown beside it.',
+        'Fit ordinary least squares to the 0/1 label. Count how many of the 150 fitted values fall '
+        'outside [0, 1], and say in one sentence why that disqualifies it as a probability model.',
+        'Write down the Bernoulli log-likelihood and show that maximising it is minimising the '
+        'average log-loss. Two lines; the same manoeuvre as Task 1 with a different density.'])]
+    B += [('math', 'p = σ(xᵀw + b) = 1 / (1 + e^−(xᵀw + b))')]
+
+    B += [('h2', '6b · Implement it')]
+    B += [('numbers', [
+        'Implement penalized logistic regression **from scratch**, minimising the average log-loss '
+        'plus α·ρ‖w‖₁ + (α(1−ρ)/2)‖w‖², with the intercept **unpenalized**. Iteratively '
+        'reweighted least squares (for ρ = 0) or proximal gradient descent (any ρ) are both '
+        'acceptable; state which you chose and why.',
+        'Verify against `sklearn.linear_model.LogisticRegression` at C = 1/(nα), to 3 decimals.'])]
+    B += [('callout', 'warn', 'A trap worth warning you about',
+           "If you compare against `solver='liblinear'` your coefficients will disagree by far "
+           'more than solver tolerance, and no amount of tuning will fix it: **liblinear '
+           'penalizes the intercept** and your objective does not. Use `lbfgs` for ℓ₂ or `saga` '
+           'for ℓ₁ and elastic net. Diagnosing this yourself and saying so earns credit — it is '
+           'the same discipline as the 1/2n factor in Task 3a.')]
+
+    B += [('h2', '6c · The penalties, again')]
+    B += [('numbers', [
+        'Plot coefficient paths over a log α grid at ρ = 0 and ρ = 1. Confirm that ℓ₂ never '
+        'reaches zero and ℓ₁ does.',
+        'Record the ℓ₁ **elimination order** and compare it with your Task 3c prediction. It will '
+        'probably be wrong. Explain why: which features go first here, and what does that tell '
+        'you about what an ℓ₁ ordering actually measures?',
+        'Tune all four models (no penalty, ℓ₂, ℓ₁, elastic net) by 5-fold cross-validation on '
+        '**log-loss**, not accuracy. Report held-out log-loss, AUC, accuracy and non-zero count.'])]
+
+    B += [('h2', "6d · The threshold is not the model's job")]
+    B += [('numbers', [
+        'Plot the ROC curve for your best model and report AUC.',
+        'Give the confusion matrix at thresholds 0.3, 0.5 and 0.7, stating how many real alerts '
+        'are missed and how many false alarms raised at each.',
+        'Dispatch tells you a missed alert costs roughly four times a false alarm. Choose the '
+        'threshold that minimises expected cost, show the arithmetic, and say which layer of the '
+        'system that number belongs in.'])]
+
+    B += [('h2', '6e · Was the label worth making?')]
+    B += [('p', 'The binary target was manufactured by cutting a continuous one. Measure the cost.')]
+    B += [('numbers', [
+        'Take your Ridge model from Task 2, predict the surge in rupees on the held-out trips, and '
+        'threshold the *prediction* at ₹100 to get a yes/no.',
+        'Compare its accuracy, and the AUC implied by ranking its rupee predictions, against your '
+        'best purpose-built classifier.',
+        'Conclude. If thresholding the regression matches or beats the classifier, say so plainly '
+        'and explain what dichotomising cost you. If it does not, explain what the classifier is '
+        'exploiting that the regression is not.'])]
+    B += [('callout', 'ok', 'This is the part that is really being marked',
+           '6e is a question about modelling judgement, not implementation. The strongest answers '
+           'notice that the regression retains information the classifier discarded — *how far* '
+           'above the cut a cell sits — and that this is the same objection raised against the '
+           'hard R/S > 1.5 threshold in Task 5, arrived at from the other direction.')]
+
     # ---------------- Bonus ----------------
     B += [('h1', 'Bonus · The full posterior  (+10 marks)')]
     B += [('math', 'Σ = (XᵀX/σ² + I/τ²)⁻¹,    μ = Σ Xᵀy / σ²,    Var(y*) = x*ᵀΣx* + σ²')]
@@ -286,7 +361,11 @@ def brief():
              '300 words. Which estimator ships for Mumbai and why. Name the constraint that '
              'decides it — interpretability, stability, latency or accuracy — and be honest if '
              'accuracy is not the deciding factor.'],
-            ['4', 'Notebook',
+            ['4', 'ROC curve and a justified threshold',
+             'One figure with the ROC curve and AUC, the confusion matrix at your chosen '
+             'threshold, and the cost arithmetic behind it. Show the base rate beside every '
+             'accuracy you report.'],
+            ['5', 'Notebook',
              'Runnable top to bottom, seeded, with your from-scratch implementations intact.']],
            [0.04, 0.24, 0.72])]
 
@@ -299,7 +378,7 @@ def brief():
              'unprompted. Distinguishes "these models differ" from "these models differ by more '
              'than noise".'],
             ['Merit (60–69)',
-             'All five tasks complete and correct. Figures labelled and readable. '
+             'All six tasks complete and correct. Figures labelled and readable. '
              'Cross-validation on the training split only. Conclusions follow from the evidence.'],
             ['Pass (50–59)',
              'Estimators implemented and broadly correct; analysis thin or descriptive. May '
@@ -330,8 +409,9 @@ def brief():
 # THE SOLUTIONS
 # =========================================================================== #
 def solutions():
-    t1, t2, t3, t4, t5, bn, cm = (R['task1'], R['task2'], R['task3'], R['task4'],
-                                  R['task5'], R['bonus'], R['comparison'])
+    t1, t2, t3, t4, t5, t6, bn, cm = (R['task1'], R['task2'], R['task3'], R['task4'],
+                                      R['task5'], R['task6'], R['bonus'],
+                                      R['comparison'])
     B = []
     B += [('title', 'Model Solutions and Marking Notes',
            f'{COURSE} · instructor copy')]
@@ -540,6 +620,79 @@ def solutions():
                 'cell-buckets from the surge policy, or randomising the multiplier within a '
                 'narrow band — can identify it. Full marks require naming the endogeneity, not '
                 'merely saying "we need more data".')]
+
+    # ---- Task 6 ----
+    B += [('pagebreak',), ('h1', 'Task 6 · Logistic regression')]
+    B += [('p', f"Label: `high_surge = surge > ₹{t6['cut']:.0f}`. "
+                f"**{t6['n_pos_train']} positives of 150** in training and "
+                f"{t6['n_pos_test']} of 50 in test, so the base rate — the accuracy of always "
+                f"predicting \"no alert\" — is **{100*t6['base_rate_train']:.1f}%** on train and "
+                f"{100*t6['base_rate_test']:.1f}% on test.")]
+    B += [('callout', 'ok', 'Step 6a · the least-squares failure',
+           f"Least squares on the 0/1 label puts **{t6['ols_on_label_outside_01']} of 150** fitted "
+           'values outside [0, 1]. Those are not probabilities, and no amount of refitting makes '
+           'them so: a linear function on an unbounded input is unbounded. Accept any answer that '
+           'says this; reject answers that merely call the fit "worse".')]
+
+    B += [('h2', '6c · The four models, tuned on log-loss')]
+    B += [('table', ['Model', 'α', 'Test log-loss', 'Test AUC', 'Accuracy', 'Non-zero', 'Dropped'],
+           [[m['model'], '—' if m['alpha'] is None else n(m['alpha'], 5),
+             n(m['test_logloss'], 4), n(m['test_auc'], 4),
+             f"{100*m['test_accuracy']:.1f}%", f"{m['nonzero']}/9",
+             ', '.join(f'`{d}`' for d in m['dropped']) or '—'] for m in t6['models']],
+           [0.14, 0.11, 0.15, 0.12, 0.12, 0.11, 0.25])]
+    B += [('p', f"Base rate on the test split is {100*t6['base_rate_test']:.1f}%, so an accuracy of "
+                f"{100*max(m['test_accuracy'] for m in t6['models']):.1f}% is a real improvement "
+                '— but note how small the margin is, and that accuracy is the least informative '
+                'column in the table.')]
+
+    B += [('p', '**ℓ₁ elimination order:** '
+                + ' → '.join(f'`{x}`' for x in t6['l1_elimination_order']) + '.')]
+    B += [('callout', 'ok', '6c step 2 · the answer students will get wrong',
+           'Most will predict `is_weekend` dies first, because it did in the regression and its '
+           'true effect is exactly zero. It does not. The redundant weather features go first, '
+           'because `traffic_speed` already carries their information and ℓ₁ will not pay for it '
+           'twice. Full marks for recognising that an ℓ₁ ordering ranks **marginal usefulness '
+           'given the other features**, not true importance — the selection-instability caveat '
+           'from Theory §5.3 in a new guise. Partial marks for noticing the discrepancy without '
+           'explaining it.')]
+
+    B += [('h2', '6d · Threshold under a 4:1 cost ratio')]
+    B += [('p', 'With a missed alert costing four times a false alarm, the cost-minimising '
+                'threshold sits **below** 0.5 — the model should alert more readily than a '
+                'coin-flip cutoff. The exact value depends on the fitted model; anything in the '
+                'region of 0.1–0.3 with correct arithmetic is right. What matters is the '
+                'observation that **no coefficient changed** when the threshold moved: it is a '
+                'policy parameter, and belongs beside the ₹150 cap from Task 5.')]
+
+    B += [('h2', '6e · The cost of dichotomising')]
+    lt = t6['linear_then_threshold']
+    B += [('table', ['Approach', 'Accuracy', 'AUC'],
+           [['Best purpose-built classifier',
+             f"{100*max(m['test_accuracy'] for m in t6['models']):.1f}%",
+             n(t6['best_classifier_auc'], 4)],
+            [f"Ridge in rupees, then cut at ₹{t6['cut']:.0f}",
+             f"{100*lt['accuracy']:.1f}%", n(lt['auc_from_ranking'], 4)]],
+           [0.52, 0.24, 0.24])]
+    if t6['dichotomising_costs_nothing']:
+        B += [('callout', 'warn', 'The expected — and uncomfortable — finding',
+               f"Predicting the surge in rupees and thresholding the prediction reaches "
+               f"**{100*lt['accuracy']:.0f}% accuracy and {n(lt['auc_from_ranking'], 3)} AUC**, "
+               f"against the best classifier's {n(t6['best_classifier_auc'], 3)}. The regression "
+               'wins, and it also reports *how far* above the cut each cell sits, which the '
+               'classifier discarded. Dichotomising the target cost resolution and bought '
+               'nothing.\n\nAward the marks for stating this plainly. A student who reports it '
+               'and connects it to the criticism of the hard R/S > 1.5 threshold in Task 5 has '
+               'understood the module. Penalise any write-up that quietly reports only the '
+               'classifier results.')]
+    else:
+        B += [('callout', 'ok', 'Finding',
+               'The purpose-built classifier beats thresholding the regression here, so the '
+               'binary model earns its place. Require an explanation of what it is exploiting.')]
+    ov = t6['selection_overlap']
+    B += [('p', f"For reference, the two ℓ₁ fits select different feature sets: the regression "
+                f"keeps {', '.join('`'+x+'`' for x in ov['regression_kept'])}; the classifier "
+                f"keeps {', '.join('`'+x+'`' for x in ov['classifier_kept'])}.")]
 
     # ---- Bonus ----
     B += [('h1', 'Bonus · The full posterior')]

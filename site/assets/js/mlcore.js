@@ -197,6 +197,153 @@
     return {mu, cov: S, sd: S.map((r, i) => Math.sqrt(Math.max(r[i], 0)))};
   }
 
+  /* ---------------- penalized logistic regression ----------------
+     Minimises the average log-loss plus the same penalty family as above:
+
+       (1/n) Σ [ −y log σ(z) − (1−y) log(1−σ(z)) ]
+         + α·ρ·‖w‖₁ + (α(1−ρ)/2)·‖w‖²        with z = Xw + b
+
+     The intercept b is never penalized. There is no closed form, so this is
+     proximal gradient descent with FISTA acceleration: a gradient step on the
+     smooth part, then a soft-threshold for the ℓ₁ part. Equivalent to
+     sklearn's LogisticRegression at C = 1/(n·α).
+  ------------------------------------------------------------------- */
+  const sigmoid = z => z >= 0 ? 1 / (1 + Math.exp(-z)) : Math.exp(z) / (1 + Math.exp(z));
+
+  function logLoss(y, p, eps = 1e-12) {
+    let s = 0;
+    for (let i = 0; i < y.length; i++) {
+      const q = Math.min(Math.max(p[i], eps), 1 - eps);
+      s += -(y[i] * Math.log(q) + (1 - y[i]) * Math.log(1 - q));
+    }
+    return s / y.length;
+  }
+
+  function logistic(X, y, opt = {}) {
+    const alpha = opt.alpha == null ? 0 : opt.alpha;
+    const rho = opt.l1Ratio == null ? 0 : opt.l1Ratio;
+    const maxIter = opt.maxIter || 4000, tol = opt.tol || 1e-9;
+    const n = X.length, p = X[0].length;
+    const l1 = alpha * rho, l2 = alpha * (1 - rho);
+
+    /* Step size from the Lipschitz constant of the log-loss gradient. The
+       Hessian of σ is bounded by 1/4, and the intercept contributes a column
+       of ones, hence the +1 on the row norms. */
+    let colMax = 0;
+    for (let i = 0; i < n; i++) {
+      let r = 1;
+      for (let j = 0; j < p; j++) r += X[i][j] * X[i][j];
+      if (r > colMax) colMax = r;
+    }
+    const L = 0.25 * colMax + l2 + 1e-9;
+    const step = 1 / L;
+
+    let w = (opt.warm && opt.warm.slice()) || new Array(p).fill(0);
+    let b = opt.warmB || 0;
+    let wy = w.slice(), by = b, tk = 1;          // FISTA momentum terms
+    let iters = 0, converged = false;
+
+    const obj = (ww, bb) => {
+      const pr = new Array(n);
+      for (let i = 0; i < n; i++) {
+        let z = bb;
+        for (let j = 0; j < p; j++) z += X[i][j] * ww[j];
+        pr[i] = sigmoid(z);
+      }
+      let pen = 0;
+      for (let j = 0; j < p; j++) pen += l1 * Math.abs(ww[j]) + l2 / 2 * ww[j] * ww[j];
+      return logLoss(y, pr) + pen;
+    };
+
+    let prev = obj(w, b);
+    for (; iters < maxIter; iters++) {
+      /* gradient of the smooth part at the momentum point */
+      const g = new Array(p).fill(0);
+      let gb = 0;
+      for (let i = 0; i < n; i++) {
+        let z = by;
+        for (let j = 0; j < p; j++) z += X[i][j] * wy[j];
+        const d = sigmoid(z) - y[i];
+        gb += d;
+        for (let j = 0; j < p; j++) g[j] += X[i][j] * d;
+      }
+      gb /= n;
+      for (let j = 0; j < p; j++) g[j] = g[j] / n + l2 * wy[j];
+
+      /* proximal step: gradient, then soft-threshold */
+      const wNew = new Array(p);
+      for (let j = 0; j < p; j++) wNew[j] = softThreshold(wy[j] - step * g[j], step * l1);
+      const bNew = by - step * gb;
+
+      /* FISTA extrapolation */
+      const tNext = (1 + Math.sqrt(1 + 4 * tk * tk)) / 2;
+      const mom = (tk - 1) / tNext;
+      for (let j = 0; j < p; j++) wy[j] = wNew[j] + mom * (wNew[j] - w[j]);
+      by = bNew + mom * (bNew - b);
+      w = wNew; b = bNew; tk = tNext;
+
+      if (iters % 10 === 9) {
+        const cur = obj(w, b);
+        if (Math.abs(prev - cur) < tol * Math.max(1, Math.abs(prev))) { converged = true; iters++; break; }
+        /* A non-monotone step means the momentum overshot; restart it. */
+        if (cur > prev) { wy = w.slice(); by = b; tk = 1; }
+        prev = cur;
+      }
+    }
+    return {w, b, iters, converged, objective: obj(w, b)};
+  }
+
+  /** Predicted probabilities for a fitted logistic model. */
+  const predictProba = (X, w, b) =>
+    X.map(r => sigmoid(b + r.reduce((s, v, j) => s + v * w[j], 0)));
+
+  /** Confusion matrix and the usual rates at a given decision threshold. */
+  function classMetrics(y, prob, threshold = 0.5) {
+    let tp = 0, fp = 0, tn = 0, fn = 0;
+    for (let i = 0; i < y.length; i++) {
+      const hat = prob[i] >= threshold ? 1 : 0;
+      if (y[i] === 1 && hat === 1) tp++;
+      else if (y[i] === 0 && hat === 1) fp++;
+      else if (y[i] === 0 && hat === 0) tn++;
+      else fn++;
+    }
+    const prec = tp + fp ? tp / (tp + fp) : NaN;
+    const rec = tp + fn ? tp / (tp + fn) : NaN;
+    return {tp, fp, tn, fn,
+      accuracy: (tp + tn) / y.length,
+      precision: prec, recall: rec,
+      specificity: tn + fp ? tn / (tn + fp) : NaN,
+      f1: (prec && rec) ? 2 * prec * rec / (prec + rec) : NaN};
+  }
+
+  /** ROC curve and AUC. AUC is computed by the rank (Mann-Whitney) identity,
+      which is exact and avoids trapezoid error on ties. */
+  function rocCurve(y, prob) {
+    const idx = y.map((_, i) => i).sort((a, b) => prob[b] - prob[a]);
+    const P = y.reduce((s, v) => s + (v === 1), 0), N = y.length - P;
+    const pts = [[0, 0]];
+    let tp = 0, fp = 0;
+    idx.forEach(i => {
+      if (y[i] === 1) tp++; else fp++;
+      pts.push([N ? fp / N : 0, P ? tp / P : 0]);
+    });
+    /* AUC from average ranks of the positives. */
+    const order = y.map((_, i) => i).sort((a, b) => prob[a] - prob[b]);
+    const rank = new Array(y.length);
+    let i2 = 0;
+    while (i2 < order.length) {
+      let j = i2;
+      while (j + 1 < order.length && prob[order[j + 1]] === prob[order[i2]]) j++;
+      const avg = (i2 + j) / 2 + 1;
+      for (let k = i2; k <= j; k++) rank[order[k]] = avg;
+      i2 = j + 1;
+    }
+    let sumRankPos = 0;
+    for (let i = 0; i < y.length; i++) if (y[i] === 1) sumRankPos += rank[i];
+    const auc = (P && N) ? (sumRankPos - P * (P + 1) / 2) / (P * N) : NaN;
+    return {points: pts, auc};
+  }
+
   /* ---------------- metrics & model selection ---------------- */
   const predict = (X, w, b = 0) => X.map(r => b + r.reduce((s, v, j) => s + v * w[j], 0));
   const rmse = (y, yh) => Math.sqrt(y.reduce((s, v, i) => s + (v - yh[i]) ** 2, 0) / y.length);
@@ -253,6 +400,7 @@
     T, matmul, matvec, inv, eye, addM, condition, eigSym,
     standardize, applyScale, center, mean,
     ols, ridge, lasso, elasticNet, softThreshold, bayesLinear,
-    predict, rmse, mae, r2, kFoldCV, randn, gaussPdf, laplacePdf, corr
+    predict, rmse, mae, r2, kFoldCV, randn, gaussPdf, laplacePdf, corr,
+    sigmoid, logistic, logLoss, predictProba, classMetrics, rocCurve
   };
 })(window);

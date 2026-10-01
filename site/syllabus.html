@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script defer src="assets/js/site.js?v=1bb33b97"></script>
+<script defer src="assets/js/site.js?v=4aad8b8e"></script>
 </head>
 <body>
 
@@ -18,7 +18,7 @@
   <div class="wrap">
     <div class="eyebrow">Course outline</div>
     <h1>Syllabus</h1>
-    <p class="lede">Six weeks, twelve contact hours, one case study carried end to end. Assessment
+    <p class="lede">Seven weeks, fourteen contact hours, one case study carried end to end. Assessment
     is entirely through the surge-pricing build; there is no separate problem set.</p>
   </div>
 </section>
@@ -125,6 +125,18 @@
     <a href="applications.html">Applications</a>.
     <strong>Due:</strong> Bonus task + final write-up.</p>
   </div>
+  <div class="item">
+    <div class="pill-row"><span class="badge">WEEK 7</span><span class="badge ok">Logistic</span></div>
+    <h3 style="margin-top:0">Classification: a different likelihood, the same priors</h3>
+    <p class="small">Bernoulli likelihood and log-loss. Why least squares on a 0/1 label is wrong.
+    Penalized logistic regression, solved by IRLS or proximal gradient. ROC, AUC and the base rate.
+    The threshold as a policy decision. And the cost of dichotomising an outcome you could already
+    model continuously.</p>
+    <p class="small muted"><strong>Lab:</strong> the
+    <a href="logistic.html">logistic regression lab</a> — sigmoid, decision boundary, coefficient
+    paths, ROC. <strong>Reading:</strong> <a href="theory.html#logistic">Theory §8</a>.
+    <strong>Due:</strong> Task 6.</p>
+  </div>
 </div>
 
 <h2 id="assessment">Assessment</h2>
@@ -135,18 +147,22 @@
     <tr><td>Task 1 — MLE / OLS by hand</td><td class="num">10%</td>
         <td>Correct hand computation of $X^\top X$, and an account of why the coefficients are
         unstable rather than just that they are.</td></tr>
-    <tr><td>Task 2 — Ridge</td><td class="num">20%</td>
+    <tr><td>Task 2 — Ridge</td><td class="num">18%</td>
         <td>Closed-form implementation, the coefficient path plot, and identification of the
         λ that minimises held-out error — with the selection method stated.</td></tr>
-    <tr><td>Task 3 — Lasso</td><td class="num">20%</td>
+    <tr><td>Task 3 — Lasso</td><td class="num">18%</td>
         <td>Working coordinate descent matching <code>sklearn</code> to 3 decimals, plus the
         feature-selection argument on the $p \gg n$ data.</td></tr>
-    <tr><td>Task 4 — Elastic Net</td><td class="num">20%</td>
+    <tr><td>Task 4 — Elastic Net</td><td class="num">18%</td>
         <td>The three-way comparison on the correlated group, and an explanation of the grouping
         effect that does not restate the result.</td></tr>
-    <tr><td>Task 5 — Surge engine</td><td class="num">20%</td>
+    <tr><td>Task 5 — Surge engine</td><td class="num">18%</td>
         <td>End-to-end decision rule with cap and threshold, the BKC simulation, and a deployment
         recommendation with a defensible reason.</td></tr>
+    <tr><td>Task 6 — Logistic regression</td><td class="num">18%</td>
+        <td>From-scratch penalized logistic regression matching <code>sklearn</code>, log-loss
+        used for model selection rather than accuracy, a justified threshold, and a defensible
+        answer to whether the binary label was worth creating.</td></tr>
     <tr><td>Bonus — Bayesian posterior</td><td class="num">+10%</td>
         <td>Credible intervals, and a correct statement of what they mean.</td></tr>
   </tbody>

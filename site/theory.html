@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script defer src="assets/js/site.js?v=1bb33b97"></script>
+<script defer src="assets/js/site.js?v=4aad8b8e"></script>
 </head>
 <body>
 
@@ -399,8 +399,80 @@ uncertainty about the rain coefficient and the inherent noise in surges, and the
   tightened. Lasso makes a hard yes/no decision; these intervals are the graded version.</figcaption>
 </figure>
 
+<!-- ================= 8. LOGISTIC ================= -->
+<h2 id="logistic">8 · Logistic regression: a different likelihood, the same priors</h2>
+
+<p>Everything so far modelled a number. Now the outcome is binary — does this cell need a surge
+alert or not — so the Gaussian likelihood is the wrong model: it puts probability mass on
+$y = 1.4$ and $y = -0.3$, which do not exist.</p>
+
+<p>Replace it with a Bernoulli likelihood, with the success probability written as a sigmoid of the
+same linear score:</p>
+
+$$ p_i = \sigma(x_i^\top w + b) = \frac{1}{1 + e^{-(x_i^\top w + b)}}, \qquad
+   y_i \sim \text{Bernoulli}(p_i). $$
+
+<p>The log-likelihood is then</p>
+
+$$ \ell(w,b) = \sum_{i=1}^{n}\Big[ y_i \log p_i + (1-y_i)\log(1-p_i) \Big], $$
+
+<p>and maximising it is minimising the average <strong>log-loss</strong>, also called binary
+cross-entropy. Exactly as in <a href="#mle">§2</a>, the loss was not chosen — it fell out of the
+noise model.</p>
+
+<h3 id="logistic-map">8.1 · MAP, unchanged</h3>
+
+<p>Now apply <a href="#map">§3</a> verbatim. Multiply by a prior, take logs, negate:</p>
+
+$$ \hat w = \argmin_{w,b} \; \underbrace{\frac{1}{n}\sum_i -\big[y_i\log p_i + (1-y_i)\log(1-p_i)\big]}_{\text{log-loss}}
+  \;+\; \underbrace{\alpha\rho\lVert w\rVert_1 + \tfrac{\alpha(1-\rho)}{2}\lVert w\rVert_2^2}_{\text{same penalty as before}} $$
+
+<div class="callout">
+  <span class="ct">Nothing about the prior changed</span>
+  <p>A Gaussian prior still gives an $\ell_2$ penalty and a Laplace prior still gives an $\ell_1$
+  penalty, because the penalty comes from $-\log p(w)$ and $p(w)$ never mentioned the likelihood.
+  This is the dividend from deriving MAP once, generally, in
+  <a href="algorithms.html#map">Walkthrough 2</a> — swapping the likelihood costs you nothing.</p>
+  <p>The intercept $b$ is left unpenalized. Shrinking it would bias the predicted base rate toward
+  one half, which is a statement about the data nobody intended to make.</p>
+</div>
+
+<h3 id="logistic-solve">8.2 · Two things that do change</h3>
+
+<p><strong>There is no closed form.</strong> The gradient of the log-loss is</p>
+
+$$ \nabla_w = \frac{1}{n}X^\top(p - y) + \alpha(1-\rho)\,w, $$
+
+<p>which is non-linear in $w$ through $p$, so there is no normal equation to solve. The standard
+answers are Newton's method — iteratively reweighted least squares, which solves a weighted ridge
+problem at each step — or, when there is an $\ell_1$ term, proximal gradient descent: a gradient
+step followed by the same soft-threshold from <a href="#soft">§5.1</a>. The lab uses the latter.</p>
+
+<p><strong>The error measure changes.</strong> RMSE is meaningless for a 0/1 outcome. Use log-loss
+for fitting and model selection, AUC for a threshold-free summary, and report accuracy only
+alongside the base rate — on a 70/30 split, predicting "never" scores 70%.</p>
+
+<div class="callout warn">
+  <span class="ct">The model does not output a class</span>
+  <p>It outputs a probability. Turning that into a yes/no needs a threshold, and the threshold is a
+  statement about the relative cost of a missed alert and a false alarm — a policy decision, not a
+  model output. Keep it in the policy layer, next to the price cap in the
+  <a href="uber.html#ethics">case study</a>.</p>
+</div>
+
+<h3 id="logistic-cost">8.3 · And a warning about the label</h3>
+
+<p>Our binary target is manufactured: <code>high_surge = surge &gt; ₹100</code>. That is a real
+operational trigger, but dichotomising a continuous outcome discards information — a ₹101 trip and
+a ₹150 trip become the same observation. Before building a classifier on a threshold of something
+you can already model continuously, check whether predicting the number and thresholding the
+<em>prediction</em> does just as well. <a href="logistic.html#compare">The lab measures this</a>,
+and on this dataset the answer is uncomfortable.</p>
+
+<p>Work through it in the <a href="logistic.html">logistic regression lab</a>.</p>
+
 <!-- ================= 8. SUMMARY ================= -->
-<h2 id="cheat">8 · One page to revise from</h2>
+<h2 id="cheat">9 · One page to revise from</h2>
 
 <div class="table-wrap">
 <table>
@@ -419,6 +491,9 @@ uncertainty about the rain coefficient and the inherent noise in surges, and the
         <td>$S(\rho_j,\lambda_1)/(\lVert x_j\rVert^2+\lambda_2)$</td><td><strong>yes</strong></td></tr>
     <tr><td>Bayesian</td><td>$\mathcal{N}(0,\tau^2)$</td><td>— (full posterior)</td>
         <td>$\mathcal{N}(\mu,\Sigma)$, $\mu = \hat w_{\text{ridge}}$</td><td>no, but intervals</td></tr>
+    <tr><td>Logistic + ℓ₁/ℓ₂</td><td>same priors</td>
+        <td>log-loss $+\;\alpha\rho\lVert w\rVert_1+\frac{\alpha(1-\rho)}{2}\lVert w\rVert_2^2$</td>
+        <td>no closed form; IRLS or proximal gradient</td><td><strong>yes</strong>, with ℓ₁</td></tr>
   </tbody>
 </table>
 </div>
@@ -439,9 +514,9 @@ uncertainty about the rain coefficient and the inherent noise in surges, and the
 </main>
 
 <script defer src="assets/js/data.js?v=87c6ee7b"></script>
-<script defer src="assets/js/mlcore.js?v=ef1943ca"></script>
+<script defer src="assets/js/mlcore.js?v=edfc7862"></script>
 <script defer src="assets/js/plot.js?v=d2278767"></script>
-<script defer src="assets/js/prep.js?v=e0be9531"></script>
+<script defer src="assets/js/prep.js?v=d0b7d084"></script>
 <script defer src="assets/js/theory.js?v=7ade5ee8"></script>
 </body>
 </html>
