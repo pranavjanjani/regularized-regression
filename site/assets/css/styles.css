@@ -362,3 +362,25 @@ footer.site a{color:var(--fg-2)}
 .data-mini td{padding:3px 8px;border-bottom:1px solid var(--line);text-align:right}
 a.chip{text-decoration:none}
 a.chip:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
+
+/* ==========================================================================
+   Lab tabs — one lab page, four sections
+   ========================================================================== */
+.tabbar{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line);
+  margin:0 0 26px;padding:0 0 1px;position:sticky;top:var(--nav-h);z-index:40;
+  background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px)}
+.tabbar button{border:1px solid transparent;border-bottom:none;background:none;cursor:pointer;
+  font-family:var(--sans);font-size:.92rem;font-weight:580;color:var(--fg-3);
+  padding:11px 16px;border-radius:9px 9px 0 0;white-space:nowrap;display:flex;
+  align-items:baseline;gap:8px}
+.tabbar button:hover{color:var(--fg);background:var(--bg-3)}
+.tabbar button.on{color:var(--accent);background:var(--bg-2);border-color:var(--line);
+  border-bottom:1px solid var(--bg-2);margin-bottom:-1px;font-weight:650}
+.tabbar button .tn{font-family:var(--mono);font-size:.7rem;opacity:.75}
+.tabpanel{display:none}
+.tabpanel.on{display:block}
+.tabpanel>h2:first-of-type{margin-top:0}
+@media (max-width:760px){
+  .tabbar{position:static}
+  .tabbar button{font-size:.86rem;padding:9px 11px;flex:1 1 auto;justify-content:center}
+}

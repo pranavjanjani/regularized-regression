@@ -4,27 +4,44 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Interactive Lab — Regularized Regression</title>
-<meta name="description" content="Fit OLS, Ridge, Lasso and Elastic Net live in the browser: coefficient paths, cross-validation, collinearity and p >> n selection.">
+<meta name="description" content="One lab: penalized regression, Lasso and sparsity, penalized logistic regression, and model selection diagnostics — all fitted live in the browser on the Mumbai surge data.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="assets/css/styles.css?v=4f0003d7">
+<link rel="stylesheet" href="assets/css/styles.css?v=1a9e60c4">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<script defer src="assets/js/site.js?v=d3deb542"></script>
+<script defer src="assets/js/site.js?v=f513e693"></script>
 </head>
 <body>
 
 <section class="hero">
   <div class="wrap">
-    <div class="eyebrow">Module 1–7 · Lab</div>
+    <div class="eyebrow">Modules 1–10 · Lab</div>
     <h1>Interactive lab</h1>
-    <p class="lede">Every number here is computed in your browser from the 200-trip Mumbai dataset
-    by the estimators in <a href="assets/js/mlcore.js?v=edfc7862"><code>mlcore.js</code></a>, including the same
-    coordinate descent you write in Task 3. Change an input and the models refit.</p>
+    <p class="lede">Every number on this page is computed in your browser from the 200-trip Mumbai
+    dataset by the estimators in <a href="assets/js/mlcore.js?v=edfc7862"><code>mlcore.js</code></a> —
+    including the coordinate descent you write in Task 3 and the logistic solver from Task 6.
+    Nothing is pre-baked: change an input and the models refit.</p>
+    <p class="lede" style="font-size:1rem">Four sections. <strong>Penalties</strong> is the place to
+    start; <strong>Lasso &amp; sparsity</strong> and <strong>Logistic</strong> are the two
+    estimators the assignment leans on hardest; <strong>Model selection</strong> is where you go to
+    justify a λ.</p>
   </div>
 </section>
 
 <main class="wrap">
+
+<div class="tabbar" id="labTabs">
+  <button data-tab="tab-penalties"><span class="tn">01</span> Penalties</button>
+  <button data-tab="tab-lasso"><span class="tn">02</span> Lasso &amp; sparsity</button>
+  <button data-tab="tab-logistic"><span class="tn">03</span> Logistic regression</button>
+  <button data-tab="tab-diagnostics"><span class="tn">04</span> Model selection</button>
+</div>
+
+<!-- ======================================================= TAB 1 -->
+<section class="tabpanel" id="tab-penalties">
+<p class="muted small">OLS, Ridge, Lasso and Elastic Net on the same nine features: fit them, read
+their coefficient paths, choose a penalty honestly, and compare all four on held-out trips.</p>
 
 <!-- ================= 1. WORKBENCH ================= -->
 <h2 id="workbench">1 · Model workbench</h2>
@@ -161,6 +178,13 @@ held-out 50 trips. This is the table <a href="assignments.html#deliverables">Del
 <p class="small" id="cmpNote" style="padding:11px 14px;border-radius:8px;
    background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
 
+</section>
+
+<!-- ======================================================= TAB 2 -->
+<section class="tabpanel" id="tab-lasso">
+<p class="muted small">Why the ℓ₁ penalty exists: least squares collapsing under collinearity, and
+selection when there are twice as many features as trips.</p>
+
 <!-- ================= 5. COLLINEARITY ================= -->
 <h2 id="collinear">5 · Watch OLS fall over</h2>
 <p>The Task 1 failure, live. Pick two correlated features, fit on the first <em>n</em> trips, and
@@ -235,11 +259,412 @@ many of the six Lasso recovers, and what it keeps instead.</p>
      background:var(--bg-inset);border-left:3px solid var(--c-lasso)"></p>
 </div>
 
-<div class="callout" style="margin-top:2.4em">
+
+<div class="callout">
   <span class="ct">Export your run</span>
   <p>Everything on this page can be reproduced in the notebooks.
   <button class="btn" id="exportBtn" style="margin-top:6px">Download current workbench fit as CSV</button></p>
 </div>
+</section>
+
+<!-- ======================================================= TAB 3 -->
+<section class="tabpanel" id="tab-logistic">
+<p class="muted small">The outcome becomes a yes/no. Swapping the Gaussian likelihood for a
+Bernoulli one turns least squares into logistic regression and squared error into log-loss — while
+the priors, and therefore the ℓ₁ and ℓ₂ penalties, do not change at all. Derivation in
+<a href="theory.html#logistic">Theory §8</a>.</p>
+
+<!-- ================= 1 ================= -->
+<h2 id="decision">1 · The label, and what making it cost us</h2>
+<p>There is no binary column in the dataset, so we build one:
+<code>high_surge = surge_additive_inr &gt; ₹100</code>. That is an honest operational target — above
+roughly ₹100 the dispatch team wants an alert — but it is also a <strong>deliberate loss of
+information</strong>, and the lab measures that cost in §6 rather than hiding it.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:1 1 320px">
+      <label for="cutSlider"><span>Alert threshold on surge (₹)</span><span class="val" id="cutV">100</span></label>
+      <input type="range" id="cutSlider" min="20" max="145" step="5" value="100">
+    </div>
+  </div>
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="stat"><div class="k">Positives (train)</div><div class="v" id="dPos">—</div><div class="sub" id="dPosSub">of 150</div></div>
+    <div class="stat"><div class="k">Base rate</div><div class="v" id="dBase">—</div><div class="sub">always-no accuracy</div></div>
+    <div class="stat"><div class="k">Positives (test)</div><div class="v" id="dPosTe">—</div><div class="sub">of 50</div></div>
+    <div class="stat"><div class="k">Distinct surge values lost</div><div class="v" id="dLost">—</div><div class="sub">collapsed into 2 classes</div></div>
+  </div>
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">Where the cut falls in the surge distribution</h4>
+      <div id="cutHist"></div>
+      <p class="muted small" style="margin:6px 0 0">Everything to the right of the line becomes a 1.
+      A trip at ₹101 and a trip at ₹150 are now the same observation.</p></div>
+    <div><h4 style="margin:0 0 6px">Class balance</h4>
+      <div id="cutBal"></div>
+      <p class="muted small" style="margin:6px 0 0" id="cutBalNote"></p></div>
+  </div>
+  <div class="callout warn" style="margin-bottom:0">
+    <span class="ct">Always quote the base rate</span>
+    <p class="small" style="margin:0">A model that predicts "no alert" for every cell scores
+    <strong id="dBase2">—</strong> accuracy. Any accuracy you report has to beat that number before
+    it means anything, and at extreme thresholds it becomes almost impossible to beat. This is why
+    §5 uses ROC and log-loss instead.</p>
+  </div>
+</div>
+
+<!-- ================= 2 ================= -->
+<h2 id="sigmoid">2 · Why a straight line will not do</h2>
+<p>Fit ordinary least squares to a 0/1 label and it will happily predict −0.3 and 1.4. Logistic
+regression puts the linear score through a sigmoid, so the output is always a probability:</p>
+
+$$ P(y=1 \mid x) = \sigma(x^\top w + b) = \frac{1}{1 + e^{-(x^\top w + b)}} $$
+
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:0 1 280px">
+      <label for="sigFeat"><span>Single predictor</span></label>
+      <select id="sigFeat"></select>
+    </div>
+    <div class="ctl" style="flex:1 1 220px">
+      <label for="sigThresh"><span>Decision threshold</span><span class="val" id="sigThreshV">0.50</span></label>
+      <input type="range" id="sigThresh" min="0.05" max="0.95" step="0.01" value="0.5">
+    </div>
+  </div>
+  <div id="sigChart"></div>
+  <div class="legend" id="sigLeg"></div>
+  <div class="grid g4" style="margin-top:16px">
+    <div class="stat"><div class="k">Accuracy</div><div class="v" id="sAcc">—</div><div class="sub">train</div></div>
+    <div class="stat"><div class="k">Log-loss</div><div class="v" id="sLoss">—</div><div class="sub">lower is better</div></div>
+    <div class="stat"><div class="k">OLS predictions outside [0,1]</div><div class="v" id="sOut">—</div><div class="sub">of 150</div></div>
+    <div class="stat"><div class="k">Fitted coefficient</div><div class="v" id="sCoef">—</div><div class="sub">log-odds per s.d.</div></div>
+  </div>
+  <p class="small" id="sigNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 3 ================= -->
+<h2 id="boundary">3 · The decision boundary, and what the penalty does to it</h2>
+<p>With two predictors the model is a straight line in feature space: the set where
+$x^\top w + b = 0$, i.e. where the predicted probability is exactly one half. Shading shows the
+predicted probability, so you can see confidence as well as the boundary itself.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:0 1 190px">
+      <label for="bFa"><span>Feature x</span></label><select id="bFa"></select>
+    </div>
+    <div class="ctl" style="flex:0 1 190px">
+      <label for="bFb"><span>Feature y</span></label><select id="bFb"></select>
+    </div>
+    <div class="ctl" style="flex:1 1 220px">
+      <label for="bAlpha"><span>Penalty α</span><span class="val" id="bAlphaV">0.010</span></label>
+      <input type="range" id="bAlpha" min="-3" max="1" step="0.02" value="-2">
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Penalty type</span></label>
+      <div class="seg" id="bRho">
+        <button data-r="0" class="on">ℓ₂</button>
+        <button data-r="0.5">Elastic</button>
+        <button data-r="1">ℓ₁</button>
+      </div>
+    </div>
+  </div>
+  <div class="grid g2" style="gap:26px">
+    <div><div id="bChart"></div><div class="legend" id="bLeg"></div></div>
+    <div>
+      <h4 style="margin:0 0 6px">Fitted model</h4>
+      <div id="bCoefs"></div>
+      <div style="margin-top:12px" id="bStats"></div>
+    </div>
+  </div>
+  <p class="small" id="bNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 4 ================= -->
+<h2 id="log-paths">4 · Coefficient paths, exactly as before</h2>
+<p>This is the same figure as <a href="lab.html#paths">Lab §2</a>, with log-loss in place of squared
+error. The behaviour is identical: ℓ₂ shrinks everything smoothly, ℓ₁ drives coefficients to exactly
+zero, and the first feature to die should be the one with no real effect.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:12px">
+    <div class="seg" id="pRho">
+      <button data-r="0" class="on">ℓ₂ (ridge-logistic)</button>
+      <button data-r="0.5">Elastic Net</button>
+      <button data-r="1">ℓ₁ (lasso-logistic)</button>
+    </div>
+  </div>
+  <div id="pChart"></div>
+  <div class="legend" id="pLeg"></div>
+  <p class="small" id="pNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 5 ================= -->
+<h2 id="threshold">5 · The model gives a probability; the threshold is your decision</h2>
+<p>A fitted classifier does not output a class. It outputs a probability, and someone has to choose
+where to cut. That choice is a business trade-off between missed alerts and false alarms, and it
+belongs in the policy layer — exactly like the price cap in the
+<a href="uber.html#ethics">case study</a>.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:1 1 300px">
+      <label for="tThresh"><span>Decision threshold</span><span class="val" id="tThreshV">0.50</span></label>
+      <input type="range" id="tThresh" min="0.02" max="0.98" step="0.01" value="0.5">
+    </div>
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Evaluate on</span></label>
+      <div class="seg" id="tSplit">
+        <button data-s="test" class="on">Held-out 50</button>
+        <button data-s="train">Training 150</button>
+      </div>
+    </div>
+  </div>
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">ROC curve</h4>
+      <div id="tRoc"></div>
+      <p class="muted small" style="margin:6px 0 0">Each point is one threshold. The diagonal is
+      random guessing. AUC is threshold-free, which is why it is the honest headline number.</p></div>
+    <div><h4 style="margin:0 0 6px">At this threshold</h4>
+      <div id="tConf"></div>
+      <div id="tStats" style="margin-top:12px"></div>
+    </div>
+  </div>
+  <p class="small" id="tNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--rose)"></p>
+</div>
+
+<!-- ================= 6 ================= -->
+<h2 id="log-compare">6 · Four penalties, and the cost of dichotomising</h2>
+<p>Each row is tuned by 5-fold cross-validation on <em>log-loss</em> over the training split, then
+scored once on the held-out 50. The last row is the interesting one: it ignores the classifier
+entirely, predicts the surge in rupees with the linear model from
+<a href="lab.html#compare">Lab §4</a>, and thresholds that prediction at the same cut.</p>
+
+<div class="table-wrap"><table id="logCmpTable">
+  <thead><tr>
+    <th>Model</th><th class="num">α</th><th class="num">Log-loss</th><th class="num">AUC</th>
+    <th class="num">Accuracy</th><th class="num">Non-zero</th><th>Dropped</th>
+  </tr></thead><tbody></tbody>
+</table></div>
+<p class="small" id="logCmpNote" style="padding:11px 14px;border-radius:8px;
+   background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+
+<div class="callout tip">
+  <span class="ct">What to take from this lab</span>
+  <p>The penalties behave exactly as they did for linear regression, because nothing about the
+  <em>prior</em> changed — only the likelihood. That is the whole point of having derived
+  <a href="algorithms.html#map">MAP</a> once, generally: swap in a Bernoulli likelihood and you get
+  penalized logistic regression for free, with the same λ = σ²/τ² reasoning about where the penalty
+  weight comes from.</p>
+  <p>The second lesson is about the label. If thresholding the <em>regression</em> matches the
+  purpose-built classifier, then collapsing a rich continuous outcome into two buckets bought you
+  nothing and cost you resolution. Check the last row of the table before reaching for a classifier
+  next time.</p>
+</div>
+
+
+<div class="callout tip">
+  <span class="ct">What to take from this section</span>
+  <p>The penalties behave exactly as they did for linear regression, because nothing about the
+  <em>prior</em> changed — only the likelihood. That is the dividend from deriving
+  <a href="algorithms.html#map">MAP</a> once, generally.</p>
+  <p>The second lesson is about the label. If thresholding the <em>regression</em> matches the
+  purpose-built classifier, then collapsing a continuous outcome into two buckets bought you
+  nothing and cost you resolution. Check the last row of the table above before reaching for a
+  classifier next time.</p>
+</div>
+</section>
+
+<!-- ======================================================= TAB 4 -->
+<section class="tabpanel" id="tab-diagnostics">
+<p class="muted small">The other sections pick λ by cross-validation and move on. This one opens
+that up: four criteria that disagree, the degrees-of-freedom count they are built on, every
+quantity that moves with λ, the prior-to-posterior update, the matrices themselves, and whether the
+solver converged.</p>
+
+<div class="card" style="margin-bottom:30px">
+  <div class="controls">
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Estimator</span></label>
+      <div class="seg" id="dMethod">
+        <button data-m="ridge" class="on">Ridge</button>
+        <button data-m="lasso">Lasso</button>
+        <button data-m="enet">Elastic Net</button>
+      </div>
+    </div>
+    <div class="ctl" style="flex:1 1 240px">
+      <label for="dAlpha"><span>Penalty α — used by §5 and §6</span><span class="val" id="dAlphaV">0.100</span></label>
+      <input type="range" id="dAlpha" min="-3" max="2" step="0.02" value="-1">
+    </div>
+    <div class="ctl" style="flex:1 1 200px">
+      <label for="dN"><span>Training trips</span><span class="val" id="dNV">150</span></label>
+      <input type="range" id="dN" min="20" max="150" step="1" value="150">
+    </div>
+  </div>
+  <p class="muted small" style="margin:12px 0 0">Nine features, time-based split, scaler fitted on
+  the training rows only — the same setup as the lab, so numbers are directly comparable.</p>
+</div>
+
+<!-- ================= 1 ================= -->
+<h2 id="selection">1 · Four ways to choose λ, and why they disagree</h2>
+<p>Cross-validation resamples. AIC and BIC instead penalize model complexity analytically, using
+the <em>effective degrees of freedom</em> from §2:</p>
+
+$$ \mathrm{AIC} = n\log\frac{\mathrm{RSS}}{n} + 2\,\mathrm{df}(\lambda), \qquad
+   \mathrm{BIC} = n\log\frac{\mathrm{RSS}}{n} + \log(n)\,\mathrm{df}(\lambda) $$
+
+<p>Because $\log n > 2$ for any $n > 7$, BIC charges more per degree of freedom and will always
+choose at least as much regularization as AIC. Held-out error is shown too — greyed, because
+selecting on it would spend the test set.</p>
+
+<div class="card">
+  <div id="selChart"></div>
+  <div class="legend" id="selLeg"></div>
+  <p class="muted small" style="margin:8px 0 14px">All four curves are min–max rescaled onto
+  [0, 1] so they fit one axis; the dashed verticals mark each criterion's own minimum. Absolute
+  values are in the table.</p>
+  <div class="table-wrap" style="margin-bottom:0"><table id="selTable">
+    <thead><tr><th>Criterion</th><th class="num">chosen α</th><th class="num">df there</th>
+      <th class="num">value</th><th class="num">test RMSE there</th><th>What it is doing</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="small" id="selNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 2 ================= -->
+<h2 id="df">2 · Effective degrees of freedom</h2>
+<p>An unpenalized model with nine features uses nine degrees of freedom. A penalized one uses
+fewer — but not a whole number. For ridge, writing $X = UDV^\top$,</p>
+
+$$ \mathrm{df}(\lambda) = \operatorname{tr}\!\big(X(X^\top X + \lambda I)^{-1}X^\top\big)
+   = \sum_{j} \frac{d_j^2}{d_j^2 + \lambda}, $$
+
+<p>which is the sum of the shrinkage factors from <a href="theory.html#shrink">Theory §4.1</a>.
+For Lasso, the count of non-zero coefficients is an unbiased estimate of df (Zou, Hastie &amp;
+Tibshirani, 2007), so df <em>is</em> an integer there and drops in steps.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">df against λ</h4><div id="dfChart"></div></div>
+    <div><h4 style="margin:0 0 6px">Where it comes from: the singular values</h4>
+      <div id="svChart"></div>
+      <p class="muted small" style="margin:6px 0 0">Each bar is one direction's shrinkage factor
+      $d_j^2/(d_j^2+\lambda)$ at the current α. Directions with small $d_j$ — the ill-conditioned
+      ones — are the first to be given up.</p></div>
+  </div>
+  <p class="small" id="dfNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 3 ================= -->
+<h2 id="sweep">3 · Everything that moves with λ</h2>
+<p>Six quantities on one shared axis. Reading them together is how you tell shrinkage from
+selection, and how you see what the penalty is actually buying.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:24px">
+    <div><h4 style="margin:0 0 4px">Error</h4>
+      <div id="swErr"></div><div class="legend" id="swErrLeg"></div></div>
+    <div><h4 style="margin:0 0 4px">Coefficient norms</h4>
+      <div id="swNorm"></div><div class="legend" id="swNormLeg"></div></div>
+    <div><h4 style="margin:0 0 4px">Sparsity — coefficients still alive</h4>
+      <div id="swSparse"></div></div>
+    <div><h4 style="margin:0 0 4px">Objective, split into its two parts</h4>
+      <div id="swLoss"></div><div class="legend" id="swLossLeg"></div></div>
+  </div>
+  <p class="small" id="swNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 4 ================= -->
+<h2 id="bayes">4 · One coefficient, from prior to posterior</h2>
+<p>The <a href="algorithms.html#bayes">Bayesian walkthrough</a> shows this in two dimensions as
+contours. Here it is in one, for a coefficient of your choosing: the noise the model assumes, the
+prior you brought, and the posterior the data leaves you with.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:0 1 260px">
+      <label for="bFeat"><span>Coefficient</span></label><select id="bFeat"></select>
+    </div>
+    <div class="ctl" style="flex:1 1 200px">
+      <label for="bTau"><span>Prior width τ</span><span class="val" id="bTauV">1.00</span></label>
+      <input type="range" id="bTau" min="-1" max="1.6" step="0.02" value="0">
+    </div>
+    <div class="ctl" style="flex:1 1 180px">
+      <label for="bSigma"><span>Noise σ (₹)</span><span class="val" id="bSigmaV">10</span></label>
+      <input type="range" id="bSigma" min="2" max="40" step="1" value="10">
+    </div>
+  </div>
+  <div class="grid g3" style="gap:22px">
+    <div><h4 style="margin:0 0 4px">Assumed noise</h4><div id="gErr"></div>
+      <p class="muted small" style="margin:4px 0 0">$\varepsilon \sim \mathcal{N}(0,\sigma^2)$ — the
+      likelihood's assumption, in rupees.</p></div>
+    <div><h4 style="margin:0 0 4px">Prior on this coefficient</h4><div id="gPri"></div>
+      <p class="muted small" style="margin:4px 0 0">$w_j \sim \mathcal{N}(0,\tau^2)$ — what you
+      believed before the data.</p></div>
+    <div><h4 style="margin:0 0 4px">Posterior</h4><div id="gPost"></div>
+      <p class="muted small" style="margin:4px 0 0">Prior × likelihood, normalised. Its mode is the
+      ridge estimate.</p></div>
+  </div>
+  <div style="margin-top:16px" id="gStats"></div>
+  <p class="small" id="gNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 5 ================= -->
+<h2 id="matrices">5 · The matrices, at the current α</h2>
+<p>What the closed form is actually made of, including the one output most reports omit: the
+standard errors, from $\operatorname{Var}(\hat w) = \sigma^2 (X^\top X + \lambda I)^{-1}
+X^\top X (X^\top X + \lambda I)^{-1}$.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">XᵀX / n &nbsp;<span class="muted small">(the correlation matrix)</span></h4>
+      <div id="mGram"></div>
+      <h4 style="margin:18px 0 6px">+ αI on the diagonal</h4>
+      <div id="mGramReg"></div></div>
+    <div><h4 style="margin:0 0 6px">Coefficients with standard errors</h4>
+      <div id="mCoefs"></div>
+      <div style="margin-top:12px" id="mStats"></div></div>
+  </div>
+  <p class="small" id="mNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 6 ================= -->
+<h2 id="converge">6 · Did the solver actually converge?</h2>
+<p>Ridge has a closed form, so there is nothing to check. Lasso and Elastic Net are iterative, and
+a tolerance set too loosely will silently hand you a coefficient that should have been zero.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">Objective per sweep</h4><div id="cObj"></div>
+      <p class="muted small" style="margin:6px 0 0">Coordinate descent is a descent method: this
+      can never rise. If yours does, the residual update is wrong.</p></div>
+    <div><h4 style="margin:0 0 6px">Largest coefficient change per sweep</h4><div id="cDelta"></div>
+      <p class="muted small" style="margin:6px 0 0">This is what the stopping rule watches, plotted
+      as log₁₀. Coordinate descent converges geometrically, so a straight line down is the expected
+      shape; a plateau means the tolerance has been reached.</p></div>
+  </div>
+  <div style="margin-top:16px" id="cStats"></div>
+  <p class="small" id="cNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+
+<div class="callout tip">
+  <span class="ct">How to use this section in a write-up</span>
+  <p><a href="assignments.html#t2">Task 2</a> asks you to choose λ and justify it. Quoting one CV
+  minimum is the weakest defensible answer. Quoting CV, AIC and BIC, noting that they disagree,
+  showing that held-out error barely moves across the whole region they disagree over, and then
+  taking the simplest model in that region — that is the answer the rubric is looking for.</p>
+</div>
+</section>
 
 </main>
 
@@ -247,6 +672,8 @@ many of the six Lasso recovers, and what it keeps instead.</p>
 <script defer src="assets/js/mlcore.js?v=edfc7862"></script>
 <script defer src="assets/js/plot.js?v=d2278767"></script>
 <script defer src="assets/js/prep.js?v=d0b7d084"></script>
-<script defer src="assets/js/lab.js?v=344d62cc"></script>
+<script defer src="assets/js/lab.js?v=393f2bd4"></script>
+<script defer src="assets/js/logistic.js?v=22d4dd2f"></script>
+<script defer src="assets/js/diagnostics.js?v=23f23913"></script>
 </body>
 </html>

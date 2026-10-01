@@ -412,7 +412,7 @@
       dropped: [], isLinear: true});
 
     const bestAuc = Math.max(...rows.map(r => r.auc));
-    $('cmpTable').querySelector('tbody').innerHTML = rows.map(r => `
+    $('logCmpTable').querySelector('tbody').innerHTML = rows.map(r => `
       <tr>
         <td>${r.isLinear ? '<em>' + r.name + '</em>' : r.name}</td>
         <td class="num">${r.alpha == null ? '—' : F(r.alpha, 4)}</td>
@@ -426,7 +426,7 @@
     const clsBest = Math.max(...rows.filter(r => !r.isLinear).map(r => r.auc));
     const linRow = rows[rows.length - 1];
     const spread = clsBest - Math.min(...rows.filter(r => !r.isLinear).map(r => r.auc));
-    $('cmpNote').innerHTML =
+    $('logCmpNote').innerHTML =
       `The four classifiers span <strong>${F(spread, 4)}</strong> of AUC — `
       + (spread < 0.02
           ? 'indistinguishable, so pick on interpretability rather than on the fourth decimal. '
@@ -467,6 +467,7 @@
   $('tThresh').addEventListener('input', drawThreshold);
 
   UI.onDraw(() => {
+    if (!UI.visible($('cutHist'))) return;      // logistic tab not on screen
     drawLabel(); drawSigmoid(); drawBoundary(); drawPaths(); drawThreshold(); drawCompare();
   });
 })();

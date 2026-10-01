@@ -20,12 +20,15 @@ site/                     the class website — static, no server needed
                           construction, ridge, lasso, elastic net, Bayesian updating
   applications.html       where each method ships, with evidence tags
   uber.html               the surge-pricing case study + live fare calculator
-  lab.html                6-panel interactive lab on the real dataset
-  logistic.html           logistic regression lab: sigmoid, decision boundary,
-                          coefficient paths, ROC, and the cost of dichotomising
-  diagnostics.html        model selection (CV / AIC / BIC), effective df, every
-                          quantity vs lambda, prior->posterior, live matrices,
-                          solver convergence
+  lab.html                THE lab — one page, four tabs, 18 interactive panels:
+                            01 Penalties      workbench, paths, CV, 4-way compare
+                            02 Lasso          collinearity collapse, p >> n
+                            03 Logistic       sigmoid, boundary, ROC, threshold
+                            04 Model selection CV/AIC/BIC, df, prior->posterior,
+                                              matrices, solver convergence
+                          Tabs draw lazily, so only the visible one computes.
+  logistic.html           redirect -> lab.html#tab-logistic (published earlier)
+  diagnostics.html        redirect -> lab.html#tab-diagnostics
   dataset.html            data explorer: correlations, distributions, raw table
   assignments.html        the graded brief
   notebooks.html          notebook downloads

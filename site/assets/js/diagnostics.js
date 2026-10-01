@@ -486,5 +486,8 @@
   ['bFeat', 'bTau', 'bSigma'].forEach(id =>
     $(id).addEventListener(id === 'bFeat' ? 'change' : 'input', drawBayes));
 
-  UI.onDraw(() => { rebuild(); redrawAll(); });
+  UI.onDraw(() => {
+    if (!UI.visible($('selChart'))) return;     // diagnostics tab not on screen
+    rebuild(); redrawAll();
+  });
 })();

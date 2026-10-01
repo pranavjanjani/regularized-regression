@@ -418,7 +418,10 @@
   });
 
   /* ========================= boot ========================= */
+  /* lab.js spans two tabs, so each group checks its own panel. A hidden panel
+     measures zero width, so drawing it would produce charts at the wrong size. */
   UI.onDraw(() => {
-    drawWB(); drawPaths(); drawCV(); drawCompare(); drawCollinear(); drawNewCity();
+    if (UI.visible($('wbCoefs'))) { drawWB(); drawPaths(); drawCV(); drawCompare(); }
+    if (UI.visible($('colOlsBox'))) { drawCollinear(); drawNewCity(); }
   });
 })();

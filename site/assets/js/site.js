@@ -13,8 +13,6 @@
     ['uber.html',         'Case Study'],
     ['algorithms.html',   'Algorithms'],
     ['lab.html',          'Lab'],
-    ['logistic.html',     'Logistic'],
-    ['diagnostics.html',  'Diagnostics'],
     ['dataset.html',      'Data'],
     ['assignments.html',  'Assignments'],
     ['notebooks.html',    'Notebooks'],
@@ -73,8 +71,8 @@
           <h5>Practice</h5>
           <ul>
             <li><a href="lab.html">Interactive lab</a></li>
-            <li><a href="logistic.html">Logistic regression lab</a></li>
-            <li><a href="diagnostics.html">Model selection &amp; diagnostics</a></li>
+            <li><a href="lab.html#tab-logistic">Logistic regression</a></li>
+            <li><a href="lab.html#tab-diagnostics">Model selection</a></li>
             <li><a href="dataset.html">Dataset explorer</a></li>
             <li><a href="notebooks.html">Jupyter notebooks</a></li>
           </ul>
@@ -153,14 +151,59 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     },
-    /** Re-run every registered draw function (used on theme change / resize). */
+    /** Re-run every registered draw function (used on theme change / resize /
+        tab switch). Draws that belong to a hidden tab bail out via UI.visible(),
+        so switching tabs only pays for the panels actually on screen. */
     redraws: [],
     onDraw(fn) { this.redraws.push(fn); fn(); },
     fireDraw() { this.redraws.forEach(f => { try { f(); } catch (e) { console.error(e); } }); },
+    /** Is this element (or its tab panel) actually laid out? */
+    visible(el) {
+      if (!el) return false;
+      return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    },
+
+    /** Tab controller for the lab page. Redraws on show so charts get the real
+        width instead of the zero they would measure while hidden. */
+    initTabs(barSel) {
+      const bar = document.querySelector(barSel);
+      if (!bar) return;
+      const panels = [...document.querySelectorAll('.tabpanel')];
+      const show = id => {
+        [...bar.children].forEach(b => b.classList.toggle('on', b.dataset.tab === id));
+        panels.forEach(p => p.classList.toggle('on', p.id === id));
+        try { history.replaceState(null, '', '#' + id); } catch (e) {}
+        UI.fireDraw();
+      };
+      bar.addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (b) { show(b.dataset.tab); window.scrollTo({top: 0, behavior: 'auto'}); }
+      });
+      /* Deep links: #tab-id, or #panel-id inside a tab. */
+      const openForHash = (scroll) => {
+        const hash = decodeURIComponent(location.hash.slice(1));
+        let target = panels.find(p => p.id === hash);
+        let inner = null;
+        if (!target && hash) {
+          inner = document.getElementById(hash);
+          target = inner && inner.closest('.tabpanel');
+        }
+        if (!target) { if (!panels.some(p => p.classList.contains('on'))) show(panels[0].id); return; }
+        if (!target.classList.contains('on')) show(target.id);
+        if (scroll && inner) setTimeout(() => inner.scrollIntoView(), 60);
+      };
+      openForHash(true);
+      /* Changing only the fragment is a same-document navigation: DOMContentLoaded
+         does not fire again, so without this a link to #tab-logistic from inside
+         the lab page would do nothing. */
+      window.addEventListener('hashchange', () => openForHash(true));
+    },
     toggleTheme
   };
 
-  document.addEventListener('DOMContentLoaded', () => { chrome(); buildTOC(); renderMath(); });
+  document.addEventListener('DOMContentLoaded', () => {
+    chrome(); buildTOC(); window.UI.initTabs('#labTabs'); renderMath();
+  });
   window.addEventListener('load', renderMath);
   document.addEventListener('themechange', () => setTimeout(() => window.UI.fireDraw(), 30));
   let rt;
