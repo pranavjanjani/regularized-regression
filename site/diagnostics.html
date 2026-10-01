@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnostics — Regularized Regression</title>
+<meta name="description" content="Choosing the penalty four ways (CV, AIC, BIC, held-out), effective degrees of freedom, norms and sparsity against lambda, the Gaussian prior-to-posterior update, live matrices and solver convergence.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6f5c'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='white' font-family='Georgia'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/styles.css?v=4f0003d7">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script defer src="assets/js/site.js?v=d3deb542"></script>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Module 10 · Diagnostics</div>
+    <h1>Choosing λ, and checking your work</h1>
+    <p class="lede">The <a href="lab.html">lab</a> picks the penalty by cross-validation and moves
+    on. This page opens that up: four selection criteria that disagree, the degrees-of-freedom count
+    they are built on, every quantity that moves with λ, the prior-to-posterior update in one
+    dimension, the matrices themselves, and whether the solver actually converged.</p>
+    <div class="chips no-print">
+      <a class="chip" href="#selection">1 · four criteria</a>
+      <a class="chip" href="#df">2 · effective df</a>
+      <a class="chip" href="#sweep">3 · everything vs λ</a>
+      <a class="chip" href="#bayes">4 · prior → posterior</a>
+      <a class="chip" href="#matrices">5 · the matrices</a>
+      <a class="chip" href="#converge">6 · convergence</a>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+
+<div class="card" style="margin-bottom:30px">
+  <div class="controls">
+    <div class="ctl" style="flex:0 0 auto">
+      <label><span>Estimator</span></label>
+      <div class="seg" id="dMethod">
+        <button data-m="ridge" class="on">Ridge</button>
+        <button data-m="lasso">Lasso</button>
+        <button data-m="enet">Elastic Net</button>
+      </div>
+    </div>
+    <div class="ctl" style="flex:1 1 240px">
+      <label for="dAlpha"><span>Penalty α — used by §5 and §6</span><span class="val" id="dAlphaV">0.100</span></label>
+      <input type="range" id="dAlpha" min="-3" max="2" step="0.02" value="-1">
+    </div>
+    <div class="ctl" style="flex:1 1 200px">
+      <label for="dN"><span>Training trips</span><span class="val" id="dNV">150</span></label>
+      <input type="range" id="dN" min="20" max="150" step="1" value="150">
+    </div>
+  </div>
+  <p class="muted small" style="margin:12px 0 0">Nine features, time-based split, scaler fitted on
+  the training rows only — the same setup as the lab, so numbers are directly comparable.</p>
+</div>
+
+<!-- ================= 1 ================= -->
+<h2 id="selection">1 · Four ways to choose λ, and why they disagree</h2>
+<p>Cross-validation resamples. AIC and BIC instead penalize model complexity analytically, using
+the <em>effective degrees of freedom</em> from §2:</p>
+
+$$ \mathrm{AIC} = n\log\frac{\mathrm{RSS}}{n} + 2\,\mathrm{df}(\lambda), \qquad
+   \mathrm{BIC} = n\log\frac{\mathrm{RSS}}{n} + \log(n)\,\mathrm{df}(\lambda) $$
+
+<p>Because $\log n > 2$ for any $n > 7$, BIC charges more per degree of freedom and will always
+choose at least as much regularization as AIC. Held-out error is shown too — greyed, because
+selecting on it would spend the test set.</p>
+
+<div class="card">
+  <div id="selChart"></div>
+  <div class="legend" id="selLeg"></div>
+  <p class="muted small" style="margin:8px 0 14px">All four curves are min–max rescaled onto
+  [0, 1] so they fit one axis; the dashed verticals mark each criterion's own minimum. Absolute
+  values are in the table.</p>
+  <div class="table-wrap" style="margin-bottom:0"><table id="selTable">
+    <thead><tr><th>Criterion</th><th class="num">chosen α</th><th class="num">df there</th>
+      <th class="num">value</th><th class="num">test RMSE there</th><th>What it is doing</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="small" id="selNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 2 ================= -->
+<h2 id="df">2 · Effective degrees of freedom</h2>
+<p>An unpenalized model with nine features uses nine degrees of freedom. A penalized one uses
+fewer — but not a whole number. For ridge, writing $X = UDV^\top$,</p>
+
+$$ \mathrm{df}(\lambda) = \operatorname{tr}\!\big(X(X^\top X + \lambda I)^{-1}X^\top\big)
+   = \sum_{j} \frac{d_j^2}{d_j^2 + \lambda}, $$
+
+<p>which is the sum of the shrinkage factors from <a href="theory.html#shrink">Theory §4.1</a>.
+For Lasso, the count of non-zero coefficients is an unbiased estimate of df (Zou, Hastie &amp;
+Tibshirani, 2007), so df <em>is</em> an integer there and drops in steps.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">df against λ</h4><div id="dfChart"></div></div>
+    <div><h4 style="margin:0 0 6px">Where it comes from: the singular values</h4>
+      <div id="svChart"></div>
+      <p class="muted small" style="margin:6px 0 0">Each bar is one direction's shrinkage factor
+      $d_j^2/(d_j^2+\lambda)$ at the current α. Directions with small $d_j$ — the ill-conditioned
+      ones — are the first to be given up.</p></div>
+  </div>
+  <p class="small" id="dfNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 3 ================= -->
+<h2 id="sweep">3 · Everything that moves with λ</h2>
+<p>Six quantities on one shared axis. Reading them together is how you tell shrinkage from
+selection, and how you see what the penalty is actually buying.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:24px">
+    <div><h4 style="margin:0 0 4px">Error</h4>
+      <div id="swErr"></div><div class="legend" id="swErrLeg"></div></div>
+    <div><h4 style="margin:0 0 4px">Coefficient norms</h4>
+      <div id="swNorm"></div><div class="legend" id="swNormLeg"></div></div>
+    <div><h4 style="margin:0 0 4px">Sparsity — coefficients still alive</h4>
+      <div id="swSparse"></div></div>
+    <div><h4 style="margin:0 0 4px">Objective, split into its two parts</h4>
+      <div id="swLoss"></div><div class="legend" id="swLossLeg"></div></div>
+  </div>
+  <p class="small" id="swNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 4 ================= -->
+<h2 id="bayes">4 · One coefficient, from prior to posterior</h2>
+<p>The <a href="algorithms.html#bayes">Bayesian walkthrough</a> shows this in two dimensions as
+contours. Here it is in one, for a coefficient of your choosing: the noise the model assumes, the
+prior you brought, and the posterior the data leaves you with.</p>
+
+<div class="card">
+  <div class="controls" style="margin-bottom:14px">
+    <div class="ctl" style="flex:0 1 260px">
+      <label for="bFeat"><span>Coefficient</span></label><select id="bFeat"></select>
+    </div>
+    <div class="ctl" style="flex:1 1 200px">
+      <label for="bTau"><span>Prior width τ</span><span class="val" id="bTauV">1.00</span></label>
+      <input type="range" id="bTau" min="-1" max="1.6" step="0.02" value="0">
+    </div>
+    <div class="ctl" style="flex:1 1 180px">
+      <label for="bSigma"><span>Noise σ (₹)</span><span class="val" id="bSigmaV">10</span></label>
+      <input type="range" id="bSigma" min="2" max="40" step="1" value="10">
+    </div>
+  </div>
+  <div class="grid g3" style="gap:22px">
+    <div><h4 style="margin:0 0 4px">Assumed noise</h4><div id="gErr"></div>
+      <p class="muted small" style="margin:4px 0 0">$\varepsilon \sim \mathcal{N}(0,\sigma^2)$ — the
+      likelihood's assumption, in rupees.</p></div>
+    <div><h4 style="margin:0 0 4px">Prior on this coefficient</h4><div id="gPri"></div>
+      <p class="muted small" style="margin:4px 0 0">$w_j \sim \mathcal{N}(0,\tau^2)$ — what you
+      believed before the data.</p></div>
+    <div><h4 style="margin:0 0 4px">Posterior</h4><div id="gPost"></div>
+      <p class="muted small" style="margin:4px 0 0">Prior × likelihood, normalised. Its mode is the
+      ridge estimate.</p></div>
+  </div>
+  <div style="margin-top:16px" id="gStats"></div>
+  <p class="small" id="gNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 5 ================= -->
+<h2 id="matrices">5 · The matrices, at the current α</h2>
+<p>What the closed form is actually made of, including the one output most reports omit: the
+standard errors, from $\operatorname{Var}(\hat w) = \sigma^2 (X^\top X + \lambda I)^{-1}
+X^\top X (X^\top X + \lambda I)^{-1}$.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">XᵀX / n &nbsp;<span class="muted small">(the correlation matrix)</span></h4>
+      <div id="mGram"></div>
+      <h4 style="margin:18px 0 6px">+ αI on the diagonal</h4>
+      <div id="mGramReg"></div></div>
+    <div><h4 style="margin:0 0 6px">Coefficients with standard errors</h4>
+      <div id="mCoefs"></div>
+      <div style="margin-top:12px" id="mStats"></div></div>
+  </div>
+  <p class="small" id="mNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<!-- ================= 6 ================= -->
+<h2 id="converge">6 · Did the solver actually converge?</h2>
+<p>Ridge has a closed form, so there is nothing to check. Lasso and Elastic Net are iterative, and
+a tolerance set too loosely will silently hand you a coefficient that should have been zero.</p>
+
+<div class="card">
+  <div class="grid g2" style="gap:26px">
+    <div><h4 style="margin:0 0 6px">Objective per sweep</h4><div id="cObj"></div>
+      <p class="muted small" style="margin:6px 0 0">Coordinate descent is a descent method: this
+      can never rise. If yours does, the residual update is wrong.</p></div>
+    <div><h4 style="margin:0 0 6px">Largest coefficient change per sweep</h4><div id="cDelta"></div>
+      <p class="muted small" style="margin:6px 0 0">This is what the stopping rule watches, plotted
+      as log₁₀. Coordinate descent converges geometrically, so a straight line down is the expected
+      shape; a plateau means the tolerance has been reached.</p></div>
+  </div>
+  <div style="margin-top:16px" id="cStats"></div>
+  <p class="small" id="cNote" style="margin:14px 0 0;padding:11px 14px;border-radius:8px;
+     background:var(--bg-inset);border-left:3px solid var(--accent)"></p>
+</div>
+
+<div class="callout tip" style="margin-top:2.4em">
+  <span class="ct">How to use this page in a write-up</span>
+  <p><a href="assignments.html#t2">Task 2</a> asks you to choose λ and justify it. Quoting one
+  CV minimum is the weakest defensible answer. Quoting CV, AIC and BIC, noting that they disagree,
+  showing that the held-out error barely moves across the whole region they disagree over, and
+  then choosing the simplest model in that region — that is the answer the rubric is looking for.</p>
+</div>
+
+</main>
+
+<script defer src="assets/js/data.js?v=87c6ee7b"></script>
+<script defer src="assets/js/mlcore.js?v=edfc7862"></script>
+<script defer src="assets/js/plot.js?v=d2278767"></script>
+<script defer src="assets/js/prep.js?v=d0b7d084"></script>
+<script defer src="assets/js/diagnostics.js?v=938be091"></script>
+</body>
+</html>

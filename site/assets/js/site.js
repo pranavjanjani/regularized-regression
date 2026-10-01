@@ -14,6 +14,7 @@
     ['algorithms.html',   'Algorithms'],
     ['lab.html',          'Lab'],
     ['logistic.html',     'Logistic'],
+    ['diagnostics.html',  'Diagnostics'],
     ['dataset.html',      'Data'],
     ['assignments.html',  'Assignments'],
     ['notebooks.html',    'Notebooks'],
@@ -73,6 +74,7 @@
           <ul>
             <li><a href="lab.html">Interactive lab</a></li>
             <li><a href="logistic.html">Logistic regression lab</a></li>
+            <li><a href="diagnostics.html">Model selection &amp; diagnostics</a></li>
             <li><a href="dataset.html">Dataset explorer</a></li>
             <li><a href="notebooks.html">Jupyter notebooks</a></li>
           </ul>

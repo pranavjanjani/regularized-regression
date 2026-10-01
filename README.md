@@ -23,6 +23,9 @@ site/                     the class website — static, no server needed
   lab.html                6-panel interactive lab on the real dataset
   logistic.html           logistic regression lab: sigmoid, decision boundary,
                           coefficient paths, ROC, and the cost of dichotomising
+  diagnostics.html        model selection (CV / AIC / BIC), effective df, every
+                          quantity vs lambda, prior->posterior, live matrices,
+                          solver convergence
   dataset.html            data explorer: correlations, distributions, raw table
   assignments.html        the graded brief
   notebooks.html          notebook downloads
